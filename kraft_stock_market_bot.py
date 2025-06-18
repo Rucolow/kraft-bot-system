@@ -207,8 +207,7 @@ async def on_ready():
     @bot.tree.command(name="株価", description="現在の株価一覧を表示します")
     async def stock_prices_cmd(interaction: discord.Interaction):
         print(f"[株価] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer()
+        await interaction.response.defer()
             
             embed = discord.Embed(
                 title="📈 KRAFT株式市場 - 現在の株価",
@@ -253,10 +252,6 @@ async def on_ready():
             
             embed.set_footer(text="KRAFT株式市場")
             await interaction.followup.send(embed=embed)
-            
-        except Exception as e:
-            print(f"株価表示エラー: {e}")
-            await interaction.followup.send("株価取得中にエラーが発生しました")
     
     # =====================================
     # 株式購入コマンド
@@ -530,14 +525,13 @@ async def on_ready():
     @bot.tree.command(name="ポートフォリオ", description="あなたの保有株式を確認します")
     async def portfolio_cmd(interaction: discord.Interaction):
         print(f"[ポートフォリオ] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer()
+        await interaction.response.defer()
             
             user_id = str(interaction.user.id)
             portfolio = await get_user_portfolio(user_id)
             
             if not portfolio:
-                await interaction.followup.send("📊 保有株式はありません", ephemeral=True)
+                await interaction.followup.send("📊 保有株式はありません")
                 return
             
             # ポートフォリオデータ計算
@@ -673,11 +667,7 @@ async def on_ready():
             )
             
             embed.set_footer(text="KRAFT株式市場 | 構成比グラフ: █ = 5%")
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            
-        except Exception as e:
-            print(f"ポートフォリオ表示エラー: {e}")
-            await interaction.followup.send("ポートフォリオ取得中にエラーが発生しました", ephemeral=True)
+            await interaction.followup.send(embed=embed)
     
     # =====================================
     # 投資ランキングコマンド
@@ -685,8 +675,7 @@ async def on_ready():
     @bot.tree.command(name="投資ランキング", description="投資収益率ランキングを表示します")
     async def investment_ranking_cmd(interaction: discord.Interaction):
         print(f"[投資ランキング] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer()
+        await interaction.response.defer()
             
             # 全ユーザーのポートフォリオ取得
             users_ref = db.collection("users")
@@ -752,10 +741,6 @@ async def on_ready():
             
             embed.set_footer(text="KRAFT株式市場")
             await interaction.followup.send(embed=embed)
-            
-        except Exception as e:
-            print(f"投資ランキング表示エラー: {e}")
-            await interaction.followup.send("ランキング取得中にエラーが発生しました")
     
     # =====================================
     # コマンド同期
