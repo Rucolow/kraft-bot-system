@@ -187,7 +187,7 @@ MARKET_CONFIG = {
 }
 
 # 通知チャンネルID
-INVESTMENT_NEWS_CHANNEL_ID = 1352858863472984084  # 投資ニュースチャンネル
+INVESTMENT_NEWS_CHANNEL_ID = 1378237887446777997  # 投資ニュースチャンネル
 
 @bot.event
 async def on_ready():
@@ -743,6 +743,62 @@ async def on_ready():
             await interaction.followup.send(embed=embed)
     
     # =====================================
+    # 手動ニュース配信コマンド（管理者専用）
+    # =====================================
+    @bot.tree.command(name="市場ニュース配信", description="管理者専用：手動で市場ニュースを配信します")
+    async def manual_news_cmd(interaction: discord.Interaction, ニュース内容: str = None):
+        print(f"[市場ニュース配信] {interaction.user.name} が実行")
+        await interaction.response.defer(ephemeral=True)
+        
+        # 管理者確認
+        if str(interaction.user.id) not in ADMIN_USER_IDS:
+            await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
+            return
+        
+        # ニュース内容の選択または使用
+        if ニュース内容:
+            news = ニュース内容
+        else:
+            # デフォルトニュースからランダム選択
+            default_news = [
+                "📈 KRAFT市場が好調な推移を見せています",
+                "📊 新技術発表により関連銘柄が注目されています", 
+                "💼 機関投資家による大口取引が確認されました",
+                "🌟 市場参加者数が増加傾向にあります",
+                "⚡ システムアップデートが予定されています",
+                "💰 新たな投資機会が市場に登場しました",
+                "🔥 話題の銘柄に注目が集まっています",
+                "📉 一部銘柄で調整局面が見られます",
+                "🎯 長期投資家にとって絶好のタイミングです",
+                "🚀 市場の活性化が期待されています"
+            ]
+            news = random.choice(default_news)
+        
+        # ニュースチャンネルに配信
+        if INVESTMENT_NEWS_CHANNEL_ID:
+            channel = bot.get_channel(INVESTMENT_NEWS_CHANNEL_ID)
+            if channel:
+                embed = discord.Embed(
+                    title="📰 KRAFT市場ニュース",
+                    description=news,
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="配信情報", 
+                    value=f"管理者: {interaction.user.mention}\n配信時間: {datetime.datetime.now().strftime('%H:%M')}", 
+                    inline=False
+                )
+                embed.set_footer(text="KRAFT株式市場")
+                await channel.send(embed=embed)
+                
+                await interaction.followup.send(f"✅ 市場ニュースを配信しました。\n\n**配信内容:**\n{news}", ephemeral=True)
+                print(f"手動市場ニュース配信: {news}")
+            else:
+                await interaction.followup.send("❌ 投資ニュースチャンネルが見つかりません。", ephemeral=True)
+        else:
+            await interaction.followup.send("❌ 投資ニュースチャンネルが設定されていません。", ephemeral=True)
+    
+    # =====================================
     # コマンド同期
     # =====================================
     print("\n🔄 コマンドを同期中...")
@@ -758,6 +814,7 @@ async def on_ready():
         print("  /株式売却 [銘柄] [株数] - 株式売却")
         print("  /ポートフォリオ [ユーザー] - ポートフォリオ確認")
         print("  /投資ランキング - 投資収益率ランキング")
+        print("  /市場ニュース配信 [ニュース内容] - 管理者専用")
         
         # バックグラウンドタスク開始
         if not price_update_task.is_running():
