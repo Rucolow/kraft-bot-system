@@ -61,8 +61,7 @@ async def on_ready():
     @bot.tree.command(name="プロフィール", description="あなたのプロフィール情報を確認します")
     async def profile_cmd(interaction: discord.Interaction, ユーザー: discord.Member = None):
         print(f"[プロフィール] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer()
+        await interaction.response.defer()
             
             target_user = ユーザー if ユーザー else interaction.user
             user_id = str(target_user.id)
@@ -166,12 +165,8 @@ async def on_ready():
             embed.set_thumbnail(url=target_user.avatar.url if target_user.avatar else None)
             embed.set_footer(text="KRAFTコミュニティ")
             
-            await interaction.followup.send(embed=embed)
-            print(f"プロフィール表示成功: Lv.{current_level}")
-            
-        except Exception as e:
-            print(f"プロフィール確認エラー: {e}")
-            await interaction.followup.send("プロフィール確認中にエラーが発生しました")
+        await interaction.followup.send(embed=embed)
+        print(f"プロフィール表示成功: Lv.{current_level}")
     
     # =====================================
     # 寄付コマンド
@@ -278,8 +273,7 @@ async def on_ready():
     @bot.tree.command(name="クエスト作成", description="個人の目標クエストを作成します")
     async def quest_create_cmd(interaction: discord.Interaction, 目標内容: str, 年: int, 月: int, 日: int):
         print(f"[クエスト作成] {interaction.user.name}: {目標内容}")
-        try:
-            await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
             
             if len(目標内容) > 100:
                 await interaction.followup.send("目標内容は100文字以内で入力してください。", ephemeral=True)
@@ -358,12 +352,8 @@ async def on_ready():
             embed.add_field(name="クエストID", value=quest_id[:8], inline=True)
             embed.set_footer(text="KRAFTコミュニティ")
             
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            print(f"個人クエスト作成: {quest_id}")
-            
-        except Exception as e:
-            print(f"クエスト作成エラー: {e}")
-            await interaction.followup.send("クエスト作成中にエラーが発生しました", ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        print(f"個人クエスト作成: {quest_id}")
     
     # =====================================
     # 個人クエスト一覧コマンド
@@ -371,8 +361,7 @@ async def on_ready():
     @bot.tree.command(name="マイクエスト", description="あなたの個人クエスト一覧を表示します")
     async def my_quest_list_cmd(interaction: discord.Interaction):
         print(f"[マイクエスト] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
             
             user_id = str(interaction.user.id)
             
@@ -429,12 +418,8 @@ async def on_ready():
             
             embed.set_footer(text="KRAFTコミュニティ")
             
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            print(f"マイクエスト表示: {quest_count}件")
-            
-        except Exception as e:
-            print(f"マイクエストエラー: {e}")
-            await interaction.followup.send("クエスト一覧取得中にエラーが発生しました", ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        print(f"マイクエスト表示: {quest_count}件")
     
     # =====================================
     # クエスト達成コマンド（選択式）
@@ -442,8 +427,7 @@ async def on_ready():
     @bot.tree.command(name="クエスト達成", description="個人クエストの達成を報告します")
     async def quest_complete_cmd(interaction: discord.Interaction):
         print(f"[クエスト達成] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
             
             user_id = str(interaction.user.id)
             
@@ -480,21 +464,22 @@ async def on_ready():
             )
             
             async def select_callback(select_interaction):
-                quest_id = select.values[0]
-                
-                # クエスト達成処理
-                quest_ref = db.collection("personal_quests").document(quest_id)
-                quest_doc = quest_ref.get()
-                
-                if not quest_doc.exists:
-                    await select_interaction.response.send_message("クエストが見つかりません", ephemeral=True)
-                    return
-                
-                quest_data = quest_doc.to_dict()
-                
-                if quest_data.get("status") != "active":
-                    await select_interaction.response.send_message("このクエストは既に完了または期限切れです", ephemeral=True)
-                    return
+                try:
+                    quest_id = select.values[0]
+                    
+                    # クエスト達成処理
+                    quest_ref = db.collection("personal_quests").document(quest_id)
+                    quest_doc = quest_ref.get()
+                    
+                    if not quest_doc.exists:
+                        await select_interaction.response.send_message("クエストが見つかりません", ephemeral=True)
+                        return
+                    
+                    quest_data = quest_doc.to_dict()
+                    
+                    if quest_data.get("status") != "active":
+                        await select_interaction.response.send_message("このクエストは既に完了または期限切れです", ephemeral=True)
+                        return
                 
                 # クエスト完了処理
                 reward_xp = quest_data.get("reward_xp", 0)
@@ -550,19 +535,30 @@ async def on_ready():
                 
                 embed.set_footer(text="KRAFTコミュニティ")
                 
-                await select_interaction.response.send_message(embed=embed, ephemeral=True)
-                print(f"クエスト達成: {quest_id}, XP: {reward_xp}")
+                    await select_interaction.response.send_message(embed=embed, ephemeral=True)
+                    print(f"クエスト達成: {quest_id}, XP: {reward_xp}")
+                    
+                except discord.errors.InteractionResponded:
+                    try:
+                        await select_interaction.followup.send(embed=embed, ephemeral=True)
+                    except:
+                        pass
+                except Exception as e:
+                    print(f"クエスト達成コールバックエラー: {e}")
+                    try:
+                        await select_interaction.response.send_message("クエスト達成処理に失敗しました", ephemeral=True)
+                    except:
+                        try:
+                            await select_interaction.followup.send("クエスト達成処理に失敗しました", ephemeral=True)
+                        except:
+                            pass
             
             select.callback = select_callback
             
-            view = discord.ui.View()
+            view = discord.ui.View(timeout=120)
             view.add_item(select)
             
-            await interaction.followup.send("達成したクエストを選択してください:", view=view, ephemeral=True)
-            
-        except Exception as e:
-            print(f"クエスト達成エラー: {e}")
-            await interaction.followup.send("クエスト達成処理中にエラーが発生しました", ephemeral=True)
+        await interaction.followup.send("達成したクエストを選択してください:", view=view, ephemeral=True)
     
     # =====================================
     # クエスト削除コマンド
@@ -570,8 +566,7 @@ async def on_ready():
     @bot.tree.command(name="クエスト削除", description="個人クエストを削除します")
     async def quest_delete_cmd(interaction: discord.Interaction):
         print(f"[クエスト削除] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
             
             user_id = str(interaction.user.id)
             
@@ -609,49 +604,61 @@ async def on_ready():
             )
             
             async def select_callback(select_interaction):
-                quest_id = select.values[0]
-                
-                # クエスト削除処理
-                quest_ref = db.collection("personal_quests").document(quest_id)
-                quest_doc = quest_ref.get()
-                
-                if not quest_doc.exists:
-                    await select_interaction.response.send_message("クエストが見つかりません", ephemeral=True)
-                    return
-                
-                quest_data = quest_doc.to_dict()
-                
-                if quest_data.get("status") != "active":
-                    await select_interaction.response.send_message("このクエストは既に完了または期限切れです", ephemeral=True)
-                    return
-                
-                # クエスト削除
-                quest_ref.update({
-                    "status": "deleted",
-                    "deleted_at": firestore.SERVER_TIMESTAMP
-                })
-                
-                embed = discord.Embed(
-                    title="🗑️ クエスト削除完了",
-                    description=f"「{quest_data.get('goal', '目標不明')}」を削除しました",
-                    color=discord.Color.orange()
-                )
-                embed.add_field(name="ステータス", value="クエストが正常に削除されました", inline=False)
-                embed.set_footer(text="KRAFTコミュニティ")
-                
-                await select_interaction.response.send_message(embed=embed, ephemeral=True)
-                print(f"クエスト削除: {quest_id}")
+                try:
+                    quest_id = select.values[0]
+                    
+                    # クエスト削除処理
+                    quest_ref = db.collection("personal_quests").document(quest_id)
+                    quest_doc = quest_ref.get()
+                    
+                    if not quest_doc.exists:
+                        await select_interaction.response.send_message("クエストが見つかりません", ephemeral=True)
+                        return
+                    
+                    quest_data = quest_doc.to_dict()
+                    
+                    if quest_data.get("status") != "active":
+                        await select_interaction.response.send_message("このクエストは既に完了または期限切れです", ephemeral=True)
+                        return
+                    
+                    # クエスト削除
+                    quest_ref.update({
+                        "status": "deleted",
+                        "deleted_at": firestore.SERVER_TIMESTAMP
+                    })
+                    
+                    embed = discord.Embed(
+                        title="🗑️ クエスト削除完了",
+                        description=f"「{quest_data.get('goal', '目標不明')}」を削除しました",
+                        color=discord.Color.orange()
+                    )
+                    embed.add_field(name="ステータス", value="クエストが正常に削除されました", inline=False)
+                    embed.set_footer(text="KRAFTコミュニティ")
+                    
+                    await select_interaction.response.send_message(embed=embed, ephemeral=True)
+                    print(f"クエスト削除: {quest_id}")
+                    
+                except discord.errors.InteractionResponded:
+                    try:
+                        await select_interaction.followup.send(embed=embed, ephemeral=True)
+                    except:
+                        pass
+                except Exception as e:
+                    print(f"クエスト削除コールバックエラー: {e}")
+                    try:
+                        await select_interaction.response.send_message("クエスト削除処理に失敗しました", ephemeral=True)
+                    except:
+                        try:
+                            await select_interaction.followup.send("クエスト削除処理に失敗しました", ephemeral=True)
+                        except:
+                            pass
             
             select.callback = select_callback
             
-            view = discord.ui.View()
+            view = discord.ui.View(timeout=120)
             view.add_item(select)
             
-            await interaction.followup.send("削除したいクエストを選択してください:", view=view, ephemeral=True)
-            
-        except Exception as e:
-            print(f"クエスト削除エラー: {e}")
-            await interaction.followup.send("クエスト削除中にエラーが発生しました", ephemeral=True)
+        await interaction.followup.send("削除したいクエストを選択してください:", view=view, ephemeral=True)
     
     # =====================================
     # コマンド同期
