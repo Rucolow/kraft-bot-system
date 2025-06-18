@@ -12,6 +12,7 @@ import asyncio
 import math
 import json
 from typing import Dict, List, Optional, Tuple, Any
+import anthropic
 
 print("📈 KRAFT株式市場Bot - 開発版")
 print("=" * 50)
@@ -20,6 +21,10 @@ print("=" * 50)
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN_STOCK_MARKET_BOT")
 ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").split(",")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# Anthropic クライアント初期化
+anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 # Firebase初期化（共有）
 if not firebase_admin._apps:
@@ -743,9 +748,130 @@ async def on_ready():
             await interaction.followup.send(embed=embed)
     
     # =====================================
+    # Claude API ニュース生成関数
+    # =====================================
+    async def generate_market_news():
+        """Claude APIを使用して市場ニュースを生成"""
+        if not anthropic_client:
+            return "📈 KRAFT市場が活発な取引を見せています"
+        
+        try:
+            # 現在の株価データを取得
+            stock_info = []
+            for symbol, data in STOCK_DATA.items():
+                current_price = get_current_price(symbol)
+                stock_info.append(f"{data['name']}({symbol}): {current_price:.0f}KR - {data['sector']}")
+            
+            stock_context = "\n".join(stock_info[:6])  # 上位6銘柄のみ
+            
+            prompt = f"""あなたは日本の架空の株式市場「KRAFT市場」の金融ニュース記者です。
+
+現在の市場状況:
+{stock_context}
+
+以下の条件でリアルな市場ニュースを1つ生成してください：
+
+1. 140文字以内の簡潔なニュース
+2. 実際の株価に影響を与えそうな内容
+3. 具体的な企業名や業界を含める
+4. ポジティブ（上昇要因）またはネガティブ（下落要因）のトーンを選択
+5. 絵文字を1-2個使用
+6. 現実的で信憑性のある内容
+
+ニュースのみを出力してください。説明は不要です。"""
+
+            response = anthropic_client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            news = response.content[0].text.strip()
+            print(f"Claude生成ニュース: {news}")
+            return news
+            
+        except Exception as e:
+            print(f"Claude API エラー: {e}")
+            # フォールバック
+            fallback_news = [
+                "📈 KRAFT市場でテクノロジー銘柄が大幅上昇",
+                "📊 金融セクターに新たな投資資金流入",
+                "💼 自動車業界の決算発表が市場の注目を集める",
+                "🔥 エネルギー関連株に買い注文が殺到"
+            ]
+            return random.choice(fallback_news)
+    
+    async def apply_news_market_impact(news_content, impact_strength=0.05):
+        """ニュース内容に基づいて株価に影響を適用"""
+        try:
+            if not anthropic_client:
+                return
+            
+            # Claude APIで影響分析
+            analysis_prompt = f"""以下のニュースを分析し、どの業界・企業に影響を与えるかJSON形式で回答してください。
+
+ニュース: {news_content}
+
+企業リスト:
+- ハードバンク(9984): テクノロジー
+- トミタ(7203): 自動車
+- USJ銀行(8306): 金融
+- ソミー(6758): 電機・精密機器
+- ドモコ(9432): 通信
+- ナインイレブン(3382): 小売
+
+回答形式:
+{{"impacts": [{{"symbol": "9984", "effect": 0.03, "reason": "AI技術への投資期待"}}, ...]}}
+
+効果値は-0.1から0.1の範囲で設定してください。"""
+
+            response = anthropic_client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=300,
+                messages=[{"role": "user", "content": analysis_prompt}]
+            )
+            
+            try:
+                import json
+                analysis = json.loads(response.content[0].text.strip())
+                
+                # 株価への影響を適用
+                for impact in analysis.get("impacts", []):
+                    symbol = impact.get("symbol")
+                    effect = float(impact.get("effect", 0))
+                    reason = impact.get("reason", "市場要因")
+                    
+                    if symbol in STOCK_DATA and abs(effect) > 0.001:
+                        # 現在価格取得
+                        current_price = get_current_price(symbol)
+                        
+                        # 影響を適用
+                        price_change = effect * impact_strength * 10  # 影響度調整
+                        new_price = current_price * (1 + price_change)
+                        
+                        # 価格をDBに保存
+                        update_stock_price(symbol, new_price)
+                        
+                        print(f"ニュース影響適用: {STOCK_DATA[symbol]['name']} {current_price:.0f} -> {new_price:.0f} ({price_change*100:+.1f}%) - {reason}")
+                        
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"ニュース影響分析エラー: {e}")
+                # ランダムな市場影響をフォールバック
+                affected_stocks = random.sample(list(STOCK_DATA.keys()), k=random.randint(1, 3))
+                for symbol in affected_stocks:
+                    current_price = get_current_price(symbol)
+                    price_change = random.uniform(-impact_strength, impact_strength)
+                    new_price = current_price * (1 + price_change)
+                    update_stock_price(symbol, new_price)
+                    print(f"ランダム市場影響: {STOCK_DATA[symbol]['name']} {price_change*100:+.1f}%")
+                
+        except Exception as e:
+            print(f"市場影響適用エラー: {e}")
+
+    # =====================================
     # 手動ニュース配信コマンド（管理者専用）
     # =====================================
-    @bot.tree.command(name="市場ニュース配信", description="管理者専用：手動で市場ニュースを配信します")
+    @bot.tree.command(name="市場ニュース配信", description="管理者専用：手動でAI市場ニュースを配信します")
     async def manual_news_cmd(interaction: discord.Interaction, ニュース内容: str = None):
         print(f"[市場ニュース配信] {interaction.user.name} が実行")
         await interaction.response.defer(ephemeral=True)
@@ -755,24 +881,15 @@ async def on_ready():
             await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
             return
         
-        # ニュース内容の選択または使用
+        # ニュース内容の生成または使用
         if ニュース内容:
             news = ニュース内容
         else:
-            # デフォルトニュースからランダム選択
-            default_news = [
-                "📈 KRAFT市場が好調な推移を見せています",
-                "📊 新技術発表により関連銘柄が注目されています", 
-                "💼 機関投資家による大口取引が確認されました",
-                "🌟 市場参加者数が増加傾向にあります",
-                "⚡ システムアップデートが予定されています",
-                "💰 新たな投資機会が市場に登場しました",
-                "🔥 話題の銘柄に注目が集まっています",
-                "📉 一部銘柄で調整局面が見られます",
-                "🎯 長期投資家にとって絶好のタイミングです",
-                "🚀 市場の活性化が期待されています"
-            ]
-            news = random.choice(default_news)
+            # Claude APIでニュース生成
+            news = await generate_market_news()
+        
+        # 市場への影響を適用
+        await apply_news_market_impact(news, impact_strength=0.03)
         
         # ニュースチャンネルに配信
         if INVESTMENT_NEWS_CHANNEL_ID:
@@ -785,14 +902,14 @@ async def on_ready():
                 )
                 embed.add_field(
                     name="配信情報", 
-                    value=f"管理者: {interaction.user.mention}\n配信時間: {datetime.datetime.now().strftime('%H:%M')}", 
+                    value=f"管理者: {interaction.user.mention}\n配信時間: {datetime.datetime.now().strftime('%H:%M')}\n🎯 市場への影響が適用されました", 
                     inline=False
                 )
-                embed.set_footer(text="KRAFT株式市場")
+                embed.set_footer(text="KRAFT株式市場 • AI生成ニュース")
                 await channel.send(embed=embed)
                 
-                await interaction.followup.send(f"✅ 市場ニュースを配信しました。\n\n**配信内容:**\n{news}", ephemeral=True)
-                print(f"手動市場ニュース配信: {news}")
+                await interaction.followup.send(f"✅ AI市場ニュースを配信し、株価に影響を適用しました。\n\n**配信内容:**\n{news}", ephemeral=True)
+                print(f"AI市場ニュース配信: {news}")
             else:
                 await interaction.followup.send("❌ 投資ニュースチャンネルが見つかりません。", ephemeral=True)
         else:
@@ -878,6 +995,68 @@ async def get_current_stock_price(symbol: str) -> float:
     except Exception as e:
         print(f"株価取得エラー ({symbol}): {e}")
         return STOCK_DATA[symbol]["initial_price"]
+
+def get_current_price(symbol: str) -> float:
+    """現在の株価取得（同期版）"""
+    try:
+        market_ref = db.collection("market_data").document(f"stock_{symbol}")
+        doc = market_ref.get()
+        
+        if doc.exists:
+            return doc.to_dict().get("current_price", STOCK_DATA[symbol]["initial_price"])
+        else:
+            return STOCK_DATA[symbol]["initial_price"]
+    
+    except Exception as e:
+        print(f"株価取得エラー ({symbol}): {e}")
+        return STOCK_DATA[symbol]["initial_price"]
+
+def update_stock_price(symbol: str, new_price: float):
+    """株価を更新"""
+    try:
+        market_ref = db.collection("market_data").document(f"stock_{symbol}")
+        doc = market_ref.get()
+        
+        update_data = {
+            "current_price": new_price,
+            "last_updated": firestore.SERVER_TIMESTAMP
+        }
+        
+        if doc.exists:
+            # 既存の場合は価格履歴を更新
+            existing_data = doc.to_dict()
+            price_history = existing_data.get("price_history", [])
+            
+            # 新しい価格ポイントを追加
+            price_history.append({
+                "price": new_price,
+                "timestamp": firestore.SERVER_TIMESTAMP
+            })
+            
+            # 履歴は最新100件まで保持
+            if len(price_history) > 100:
+                price_history = price_history[-100:]
+            
+            update_data["price_history"] = price_history
+            market_ref.update(update_data)
+        else:
+            # 新規作成
+            update_data.update({
+                "symbol": symbol,
+                "company_name": STOCK_DATA[symbol]["name"],
+                "sector": STOCK_DATA[symbol]["sector"],
+                "initial_price": STOCK_DATA[symbol]["initial_price"],
+                "price_history": [{
+                    "price": new_price,
+                    "timestamp": firestore.SERVER_TIMESTAMP
+                }]
+            })
+            market_ref.set(update_data)
+        
+        print(f"株価更新完了: {symbol} = {new_price:.2f} KR")
+    
+    except Exception as e:
+        print(f"株価更新エラー ({symbol}): {e}")
 
 async def check_daily_trade_limit(user_id: str) -> bool:
     """日次取引制限チェック"""
@@ -1093,19 +1272,14 @@ async def price_update_task():
 
 @tasks.loop(hours=6)
 async def market_news_task():
-    """市場ニュース・イベントタスク（6時間間隔）"""
+    """AI市場ニュース・イベントタスク（6時間間隔）"""
     try:
-        # ランダムな市場イベント生成
-        events = [
-            "📈 KRAFT市場が好調な推移を見せています",
-            "📊 新技術発表により関連銘柄が注目されています", 
-            "💼 機関投資家による大口取引が確認されました",
-            "🌟 市場参加者数が増加傾向にあります",
-            "⚡ システムアップデートが予定されています"
-        ]
-        
         if random.random() < 0.3:  # 30%の確率でニュース配信
-            news = random.choice(events)
+            # Claude APIでニュース生成
+            news = await generate_market_news()
+            
+            # 市場への影響を適用
+            await apply_news_market_impact(news, impact_strength=0.02)  # 自動配信は影響度を少し抑える
             
             # ニュースチャンネルに投稿（チャンネルIDが設定されていれば）
             if INVESTMENT_NEWS_CHANNEL_ID:
@@ -1116,10 +1290,15 @@ async def market_news_task():
                         description=news,
                         color=discord.Color.blue()
                     )
-                    embed.set_footer(text="KRAFT株式市場")
+                    embed.add_field(
+                        name="配信情報",
+                        value=f"自動配信 • {datetime.datetime.now().strftime('%H:%M')}\n🎯 市場への影響が適用されました",
+                        inline=False
+                    )
+                    embed.set_footer(text="KRAFT株式市場 • AI生成ニュース")
                     await channel.send(embed=embed)
             
-            print(f"市場ニュース配信: {news}")
+            print(f"AI市場ニュース自動配信: {news}")
     
     except Exception as e:
         print(f"市場ニュースエラー: {e}")
