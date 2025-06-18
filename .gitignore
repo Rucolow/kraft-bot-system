@@ -1,0 +1,83 @@
+# 機密情報（絶対にアップロードしない）
+.env
+config/firebase_credentials.json
+*.json
+new-kraft-bot-firebase-adminsdk-*.json
+
+# Python関連
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 仮想環境
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE関連
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS関連
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ログファイル
+*.log
+logs/
+error_log.txt
+bot_status.txt
+
+# 一時ファイル
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+
+# バックアップファイル
+*.bak
+*.backup
+
+# 設定ファイル（個人用）
+config/local_settings.py
+config/dev_settings.py
+
+# その他
+.coverage
+.nyc_output
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+EOF < /dev/null
