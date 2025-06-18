@@ -49,41 +49,36 @@ async def on_ready():
     @bot.tree.command(name="残高", description="あなたのKR残高を確認します")
     async def balance_cmd(interaction: discord.Interaction):
         print(f"[残高] {interaction.user.name} が実行")
-        try:
-            await interaction.response.defer(ephemeral=True)
-            
-            user_id = str(interaction.user.id)
-            user_ref = db.collection("users").document(user_id)
-            user_doc = user_ref.get()
-            
-            if user_doc.exists:
-                balance = user_doc.to_dict().get("balance", 0)
-            else:
-                # 新規ユーザー初期化
-                user_data = {
-                    "user_id": user_id,
-                    "balance": 1000,
-                    "level": 1,
-                    "xp": 0,
-                    "created_at": firestore.SERVER_TIMESTAMP
-                }
-                user_ref.set(user_data)
-                balance = 1000
-                print(f"新規ユーザー作成: {user_id}")
-            
-            embed = discord.Embed(
-                title="💰 残高確認",
-                description=f"あなたの現在の残高は **{balance:,} KR** です",
-                color=discord.Color.green()
-            )
-            embed.set_footer(text="KRAFT中央銀行")
-            
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            print(f"残高確認成功: {balance} KR")
-            
-        except Exception as e:
-            print(f"残高確認エラー: {e}")
-            await interaction.followup.send("残高確認中にエラーが発生しました", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        
+        user_id = str(interaction.user.id)
+        user_ref = db.collection("users").document(user_id)
+        user_doc = user_ref.get()
+        
+        if user_doc.exists:
+            balance = user_doc.to_dict().get("balance", 0)
+        else:
+            # 新規ユーザー初期化
+            user_data = {
+                "user_id": user_id,
+                "balance": 1000,
+                "level": 1,
+                "xp": 0,
+                "created_at": firestore.SERVER_TIMESTAMP
+            }
+            user_ref.set(user_data)
+            balance = 1000
+            print(f"新規ユーザー作成: {user_id}")
+        
+        embed = discord.Embed(
+            title="💰 残高確認",
+            description=f"あなたの現在の残高は **{balance:,} KR** です",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text="KRAFT中央銀行")
+        
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        print(f"残高確認成功: {balance} KR")
     
     # =====================================
     # 送金コマンド
@@ -91,87 +86,94 @@ async def on_ready():
     @bot.tree.command(name="送金", description="他のユーザーにKRを送金します")
     async def transfer_cmd(interaction: discord.Interaction, recipient: discord.Member, 金額: int):
         print(f"[送金] {interaction.user.name} → {recipient.name}: {金額}KR")
-        try:
-            await interaction.response.defer()
-            
-            if recipient.id == interaction.user.id:
-                await interaction.followup.send("自分自身への送金はできません。")
-                return
-            
-            if 金額 <= 0:
-                await interaction.followup.send("送金額は1KR以上である必要があります。")
-                return
-            
-            if 金額 > 1000000:
-                await interaction.followup.send("1回の送金上限は1,000,000KRです。")
-                return
-            
-            sender_id = str(interaction.user.id)
-            recipient_id = str(recipient.id)
-            
-            # 送金者の残高確認
-            sender_ref = db.collection("users").document(sender_id)
-            sender_doc = sender_ref.get()
-            
-            if not sender_doc.exists:
-                await interaction.followup.send("残高が不足しています。")
-                return
-            
-            sender_balance = sender_doc.to_dict().get("balance", 0)
-            if sender_balance < 金額:
-                await interaction.followup.send(f"残高が不足しています。現在の残高: {sender_balance:,} KR")
-                return
-            
-            # 送金処理（トランザクション）
-            batch = db.batch()
-            
-            # 送金者の残高を減額
-            batch.update(sender_ref, {"balance": sender_balance - 金額})
-            
-            # 受取人の残高を増額
-            recipient_ref = db.collection("users").document(recipient_id)
-            recipient_doc = recipient_ref.get()
-            
-            if recipient_doc.exists:
-                recipient_balance = recipient_doc.to_dict().get("balance", 0)
-                batch.update(recipient_ref, {"balance": recipient_balance + 金額})
-            else:
-                # 新規ユーザーの場合
-                batch.set(recipient_ref, {
-                    "user_id": recipient_id,
-                    "balance": 1000 + 金額,
-                    "level": 1,
-                    "xp": 0,
-                    "created_at": firestore.SERVER_TIMESTAMP
-                })
-            
-            # 取引ログ
-            transaction_data = {
-                "type": "transfer",
-                "from_user": sender_id,
-                "to_user": recipient_id,
-                "amount": 金額,
-                "timestamp": firestore.SERVER_TIMESTAMP
-            }
-            batch.set(db.collection("transactions").document(), transaction_data)
-            
-            # バッチ実行
-            batch.commit()
-            
-            embed = discord.Embed(
-                title="💸 送金完了",
-                description=f"{recipient.mention} に **{金額:,} KR** を送金しました",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="送金後残高", value=f"{sender_balance - 金額:,} KR")
-            embed.set_footer(text="KRAFT中央銀行")
-            
-            await interaction.followup.send(embed=embed)
-            print(f"送金成功: {金額} KR")
-            
-        except Exception as e:
-            print(f"送金エラー: {e}")
-            await interaction.followup.send("送金処理中にエラーが発生しました。")
+        await interaction.response.defer()
+        
+        if recipient.id == interaction.user.id:
+            await interaction.followup.send("自分自身への送金はできません。")
+            return
+        
+        if 金額 <= 0:
+            await interaction.followup.send("送金額は1KR以上である必要があります。")
+            return
+        
+        if 金額 > 1000000:
+            await interaction.followup.send("1回の送金上限は1,000,000KRです。")
+            return
+        
+        sender_id = str(interaction.user.id)
+        recipient_id = str(recipient.id)
+        
+        # 送金者の残高確認
+        sender_ref = db.collection("users").document(sender_id)
+        sender_doc = sender_ref.get()
+        
+        if not sender_doc.exists:
+            await interaction.followup.send("残高が不足しています。")
+            return
+        
+        sender_balance = sender_doc.to_dict().get("balance", 0)
+        if sender_balance < 金額:
+            await interaction.followup.send(f"残高が不足しています。現在の残高: {sender_balance:,} KR")
+            return
+        
+        # 送金処理（トランザクション）
+        batch = db.batch()
+        
+        # 送金者の残高を減額
+        batch.update(sender_ref, {"balance": sender_balance - 金額})
+        
+        # 受取人の残高を増額
+        recipient_ref = db.collection("users").document(recipient_id)
+        recipient_doc = recipient_ref.get()
+        
+        if recipient_doc.exists:
+            recipient_balance = recipient_doc.to_dict().get("balance", 0)
+            batch.update(recipient_ref, {"balance": recipient_balance + 金額})
+        else:
+            # 新規ユーザーの場合
+            batch.set(recipient_ref, {
+                "user_id": recipient_id,
+                "balance": 1000 + 金額,
+                "level": 1,
+                "xp": 0,
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+        
+        # 取引ログ
+        transaction_data = {
+            "type": "transfer",
+            "from_user": sender_id,
+            "to_user": recipient_id,
+            "amount": 金額,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        }
+        batch.set(db.collection("transactions").document(), transaction_data)
+        
+        # バッチ実行
+        batch.commit()
+        
+        # 送金者への確認メッセージ
+        embed = discord.Embed(
+            title="💸 送金完了",
+            description=f"{recipient.mention} に **{金額:,} KR** を送金しました",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="送金後残高", value=f"{sender_balance - 金額:,} KR")
+        embed.set_footer(text="KRAFT中央銀行")
+        
+        await interaction.followup.send(embed=embed)
+        
+        # 受取人への通知
+        notification_embed = discord.Embed(
+            title="💰 送金を受け取りました！",
+            description=f"{interaction.user.mention} から **{金額:,} KR** を受け取りました",
+            color=discord.Color.gold()
+        )
+        notification_embed.set_footer(text="KRAFT中央銀行")
+        
+        await interaction.followup.send(f"{recipient.mention}", embed=notification_embed)
+        
+        print(f"送金成功: {金額} KR")
     
     # =====================================
     # スロットコマンド
