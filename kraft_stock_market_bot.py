@@ -555,13 +555,13 @@ async def portfolio_cmd(interaction: discord.Interaction):
     await interaction.response.defer()
     
     user_id = str(interaction.user.id)
-            portfolio = await get_user_portfolio(user_id)
-            
-            if not portfolio:
-                await interaction.followup.send("📊 保有株式はありません")
-                return
-            
-            # ポートフォリオデータ計算
+    portfolio = await get_user_portfolio(user_id)
+    
+    if not portfolio:
+        await interaction.followup.send("📊 保有株式はありません")
+        return
+    
+    # ポートフォリオデータ計算
             holdings_data = []
             total_value = 0
             total_cost = 0
