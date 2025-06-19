@@ -391,7 +391,6 @@ async def buy_stock_cmd(interaction: discord.Interaction):
                                 await modal_interaction.response.send_message("❌ 有効な数値を入力してください", ephemeral=True)
                             except Exception as e:
                                 print(f"株式購入エラー: {e}")
-                                await modal_interaction.response.send_message("❌ 購入処理中にエラーが発生しました", ephemeral=True)
                     
                     modal = SharesModal()
                     await interaction.response.send_modal(modal)
@@ -407,7 +406,6 @@ async def buy_stock_cmd(interaction: discord.Interaction):
             
     except Exception as e:
         print(f"株式購入コマンドエラー: {e}")
-        await interaction.response.send_message("❌ エラーが発生しました", ephemeral=True)
 
 # =====================================
 # 株式売却コマンド
@@ -535,7 +533,6 @@ async def sell_stock_cmd(interaction: discord.Interaction):
                                 await modal_interaction.response.send_message("❌ 有効な数値を入力してください", ephemeral=True)
                             except Exception as e:
                                 print(f"株式売却エラー: {e}")
-                                await modal_interaction.response.send_message("❌ 売却処理中にエラーが発生しました", ephemeral=True)
                     
                     modal = SellSharesModal()
                     await interaction.response.send_modal(modal)
@@ -551,7 +548,6 @@ async def sell_stock_cmd(interaction: discord.Interaction):
             
     except Exception as e:
         print(f"株式売却コマンドエラー: {e}")
-        await interaction.response.send_message("❌ エラーが発生しました", ephemeral=True)
 
 # =====================================
 # ポートフォリオ確認コマンド

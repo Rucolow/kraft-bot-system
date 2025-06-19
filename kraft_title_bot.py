@@ -168,15 +168,9 @@ class KraftTitleBot(commands.Bot):
         """Bot起動時処理"""
         print(f'🏅 KRAFT称号システム {self.user.name} が稼働開始しました')
         
-        # 既存のコマンドを完全にクリア
-        print("\n🗑️ 既存コマンドをクリア...")
-        self.tree.clear_commands(guild=None)
+        # コマンド登録
+        self.tree.command(name="称号強制チェック", description="全ユーザーの称号を強制チェックします（管理者専用）")(force_title_check_cmd)
         
-        
-        
-        # =====================================
-        # コマンド同期
-        # =====================================
         print("\n🔄 コマンドを同期中...")
         try:
             synced = await self.tree.sync()
@@ -184,14 +178,7 @@ class KraftTitleBot(commands.Bot):
             for cmd in synced:
                 print(f"  - /{cmd.name}: {cmd.description}")
             
-            # バックグラウンドタスク開始
-            if not self.title_check_task.is_running():
-                self.title_check_task.start()
-                print("✅ 称号チェックタスク開始")
-                
-            if not self.monthly_reset_task.is_running():
-                self.monthly_reset_task.start()
-                print("✅ 月次リセットタスク開始")
+            print("✅ 称号チェックコマンド同期完了")
                 
         except Exception as e:
             print(f'❌ コマンド同期エラー: {e}')
@@ -524,5 +511,4 @@ async def force_title_check_cmd(interaction: discord.Interaction):
 # Bot起動
 if __name__ == "__main__":
     bot = KraftTitleBot()
-    bot.tree.command(name="称号強制チェック", description="全ユーザーの称号を強制チェックします（管理者専用）")(force_title_check_cmd)
     bot.run(TOKEN)

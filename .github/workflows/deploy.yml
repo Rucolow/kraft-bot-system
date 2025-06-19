@@ -1,0 +1,66 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          # Switch to kraftbot user
+          sudo su - kraftbot << 'EOF'
+          
+          # Navigate to project directory
+          cd ~/kraft-bot-system
+          
+          # Pull latest changes
+          git pull origin main
+          
+          # Install/update dependencies
+          source kraft_env/bin/activate
+          pip install -r requirements.txt
+          
+          # Restart services (method depends on how bots are running)
+          # Try systemd first
+          for service in kraft-central-bank kraft-community kraft-title kraft-stock-market; do
+            if systemctl is-active --quiet $service; then
+              echo "Restarting $service..."
+              sudo systemctl restart $service
+            fi
+          done
+          
+          # Try PM2 if systemd services not found
+          if command -v pm2 &> /dev/null; then
+            pm2 restart all
+          fi
+          
+          # Check if deployment was successful
+          echo "Deployment completed at $(date)"
+          EOF
+    
+    - name: Send Discord notification
+      if: always()
+      uses: sarisia/actions-status-discord@v1
+      with:
+        webhook: ${{ secrets.DISCORD_WEBHOOK }}
+        status: ${{ job.status }}
+        title: "Deployment Status"
+        description: |
+          Deployment to VPS ${{ job.status }}
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}

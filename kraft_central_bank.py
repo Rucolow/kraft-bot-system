@@ -241,75 +241,49 @@ async def slot_cmd(interaction: discord.Interaction, 金額: int):
 # =====================================
 @bot.tree.command(name="残高調整", description="管理者専用：ユーザーの残高を調整します")
 async def admin_adjust_cmd(interaction: discord.Interaction, user: discord.Member, 金額: int, 理由: str):
-        print(f"[残高調整] {interaction.user.name} → {user.name}: {金額}KR ({理由})")
+    print(f"[残高調整] {interaction.user.name} → {user.name}: {金額}KR ({理由})")
+    try:
         await interaction.response.defer(ephemeral=True)
         
         # 管理者確認
         if str(interaction.user.id) not in ADMIN_USER_IDS:
             await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
             return
-            
-            user_id = str(user.id)
-            user_ref = db.collection("users").document(user_id)
-            user_doc = user_ref.get()
-            
-            if user_doc.exists:
-                current_balance = user_doc.to_dict().get("balance", 0)
-                new_balance = current_balance + 金額
-                user_ref.update({"balance": new_balance})
-            else:
-                # 新規ユーザーの場合
-                new_balance = 1000 + 金額
-                user_ref.set({
-                    "user_id": user_id,
-                    "balance": new_balance,
-                    "level": 1,
-                    "xp": 0,
-                    "created_at": firestore.SERVER_TIMESTAMP
-                })
-            
-            embed = discord.Embed(
-                title="💰 残高調整完了",
-                description=f"{user.mention} の残高を調整しました",
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="調整額", value=f"{金額:,} KR")
-            embed.add_field(name="新残高", value=f"{new_balance:,} KR")
-            embed.add_field(name="理由", value=理由)
-            embed.set_footer(text="KRAFT中央銀行")
-            
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            print(f"残高調整完了: {new_balance} KR")
-
-@bot.event
-async def on_ready():
-    print(f"\n🏦 KRAFT中央銀行Bot起動: {bot.user}")
-    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
-    
-    # 既存のコマンドを完全にクリア
-    print("\n🗑️ 既存コマンドをクリア...")
-    bot.tree.clear_commands(guild=None)
-    
-    # =====================================
-    # コマンド同期
-    # =====================================
-    print("\n🔄 コマンドを同期中...")
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ {len(synced)}個のコマンドが同期されました！")
-        for cmd in synced:
-            print(f"  - /{cmd.name}: {cmd.description}")
         
-        print("\n🎯 利用可能なコマンド:")
-        print("  /残高 - 残高確認")
-        print("  /送金 [ユーザー] [金額] - 送金")
-        print("  /スロット [金額] - スロットゲーム")
-        print("  /残高調整 [ユーザー] [金額] [理由] - 管理者用")
+        user_id = str(user.id)
+        user_ref = db.collection("users").document(user_id)
+        user_doc = user_ref.get()
+        
+        if user_doc.exists:
+            current_balance = user_doc.to_dict().get("balance", 0)
+            new_balance = current_balance + 金額
+            user_ref.update({"balance": new_balance})
+        else:
+            # 新規ユーザーの場合
+            new_balance = 1000 + 金額
+            user_ref.set({
+                "user_id": user_id,
+                "balance": new_balance,
+                "level": 1,
+                "xp": 0,
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+        
+        embed = discord.Embed(
+            title="💰 残高調整完了",
+            description=f"{user.mention} の残高を調整しました",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="調整額", value=f"{金額:,} KR")
+        embed.add_field(name="新残高", value=f"{new_balance:,} KR")
+        embed.add_field(name="理由", value=理由)
+        embed.set_footer(text="KRAFT中央銀行")
+        
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        print(f"残高調整完了: {new_balance} KR")
         
     except Exception as e:
-        print(f"❌ コマンド同期失敗: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"残高調整エラー: {e}")
 
 # エラーハンドリング
 @bot.event
@@ -317,6 +291,20 @@ async def on_error(event, *args, **kwargs):
     print(f"❌ エラー: {event}")
     import traceback
     traceback.print_exc()
+
+@bot.event
+async def on_ready():
+    print(f"\n🏦 KRAFT中央銀行Bot起動: {bot.user}")
+    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
+    
+    print("\n🔄 コマンドを同期中...")
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ {len(synced)}個のコマンドが同期されました！")
+        for cmd in synced:
+            print(f"  - /{cmd.name}: {cmd.description}")
+    except Exception as e:
+        print(f"❌ コマンド同期失敗: {e}")
 
 print("\n🚀 KRAFT中央銀行Bot起動中...")
 if TOKEN:

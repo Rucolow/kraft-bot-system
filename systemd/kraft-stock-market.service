@@ -1,0 +1,18 @@
+[Unit]
+Description=KRAFT Stock Market Bot
+After=network.target
+
+[Service]
+Type=simple
+User=kraftbot
+Group=kraftbot
+WorkingDirectory=/home/kraftbot/kraft-bot-system
+Environment="PATH=/home/kraftbot/kraft-bot-system/kraft_env/bin"
+ExecStart=/home/kraftbot/kraft-bot-system/kraft_env/bin/python /home/kraftbot/kraft-bot-system/scripts/bot_wrapper.py /home/kraftbot/kraft-bot-system/kraft_stock_market_bot.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/kraftbot/kraft-bot-system/logs/stock-market.log
+StandardError=append:/home/kraftbot/kraft-bot-system/logs/stock-market-error.log
+
+[Install]
+WantedBy=multi-user.target

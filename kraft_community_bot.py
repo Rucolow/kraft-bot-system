@@ -806,7 +806,26 @@ async def on_error(event, *args, **kwargs):
     import traceback
     traceback.print_exc()
 
-print("\n🚀 KRAFTコミュニティBot起動中...")
+@bot.event
+async def on_ready():
+    print(f"\n👥 KRAFTコミュニティBot起動: {bot.user}")
+    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
+    
+    print("\n🔄 コマンドを同期中...")
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ {len(synced)}個のコマンドが同期されました！")
+        for cmd in synced:
+            print(f"  - /{cmd.name}: {cmd.description}")
+        
+        # バックグラウンドタスク開始
+        if not quest_deadline_check.is_running():
+            quest_deadline_check.start()
+            print("✅ クエスト期限チェックタスク開始")
+    except Exception as e:
+        print(f"❌ コマンド同期失敗: {e}")
+
+print("\n👥 KRAFTコミュニティBot起動中...")
 if TOKEN:
     bot.run(TOKEN)
 else:

@@ -1,0 +1,18 @@
+[Unit]
+Description=KRAFT Health Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=kraftbot
+Group=kraftbot
+WorkingDirectory=/home/kraftbot/kraft-bot-system
+Environment="PATH=/home/kraftbot/kraft-bot-system/kraft_env/bin"
+ExecStart=/home/kraftbot/kraft-bot-system/kraft_env/bin/python /home/kraftbot/kraft-bot-system/scripts/health_monitor.py --interval 5
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/kraftbot/kraft-bot-system/logs/health-monitor.log
+StandardError=append:/home/kraftbot/kraft-bot-system/logs/health-monitor-error.log
+
+[Install]
+WantedBy=multi-user.target
