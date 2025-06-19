@@ -191,50 +191,7 @@ MARKET_CONFIG = {
 
 # 通知チャンネルID
 INVESTMENT_NEWS_CHANNEL_ID = 1378237887446777997  # 投資ニュースチャンネル
-        print(f"[株価] {interaction.user.name} が実行")
-        await interaction.response.defer()
-            
-            embed = discord.Embed(
-                title="📈 KRAFT株式市場 - 現在の株価",
-                color=discord.Color.blue()
-            )
-            
-            market_ref = db.collection("market_data")
-            
-            for symbol, stock_info in STOCK_DATA.items():
-                # 現在価格取得
-                price_doc = market_ref.document(f"stock_{symbol}").get()
-                if price_doc.exists:
-                    data = price_doc.to_dict()
-                    current_price = data.get("current_price", stock_info["initial_price"])
-                    change_percent = data.get("daily_change_percent", 0)
-                    volume = data.get("daily_volume", 0)
-                else:
-                    current_price = stock_info["initial_price"]
-                    change_percent = 0
-                    volume = 0
-                
-                # 変動表示
-                if change_percent > 0:
-                    change_emoji = "📈"
-                    color_indicator = "🟢"
-                elif change_percent < 0:
-                    change_emoji = "📉"
-                    color_indicator = "🔴"
-                else:
-                    change_emoji = "➡️"
-                    color_indicator = "⚪"
-                
-                embed.add_field(
-                    name=f"{color_indicator} {stock_info['emoji']} {stock_info['name']}",
-                    value=f"**{current_price:.2f} KR** {change_emoji}\n"
-                          f"変動: {change_percent:+.2f}%\n"
-                          f"出来高: {volume:,}株\n"
-                          f"業界: {stock_info['sector']}\n"
-                          f"配当: {stock_info['dividend']:.1f}%",
-                    inline=True
-                )
-            
+
 # =====================================
 # 株価情報コマンド
 # =====================================
@@ -247,6 +204,46 @@ async def stock_prices_cmd(interaction: discord.Interaction):
         title="📈 KRAFT株式市場 - 現在の株価",
         color=discord.Color.blue()
     )
+    
+    market_ref = db.collection("market_data")
+    
+    for symbol, stock_info in STOCK_DATA.items():
+        # 現在価格取得
+        price_doc = market_ref.document(f"stock_{symbol}").get()
+        if price_doc.exists:
+            data = price_doc.to_dict()
+            current_price = data.get("current_price", stock_info["initial_price"])
+            change_percent = data.get("daily_change_percent", 0)
+            volume = data.get("daily_volume", 0)
+        else:
+            current_price = stock_info["initial_price"]
+            change_percent = 0
+            volume = 0
+        
+        # 変動表示
+        if change_percent > 0:
+            change_emoji = "📈"
+            color_indicator = "🟢"
+        elif change_percent < 0:
+            change_emoji = "📉"
+            color_indicator = "🔴"
+        else:
+            change_emoji = "➡️"
+            color_indicator = "⚪"
+        
+        embed.add_field(
+            name=f"{color_indicator} {stock_info['emoji']} {stock_info['name']}",
+            value=f"**{current_price:.2f} KR** {change_emoji}\n"
+                  f"変動: {change_percent:+.2f}%\n"
+                  f"出来高: {volume:,}株\n"
+                  f"業界: {stock_info['sector']}\n"
+                  f"配当: {stock_info['dividend']:.1f}%",
+            inline=True
+        )
+    
+    embed.set_footer(text="🔄 リアルタイム更新 | 💰 KRAFT通貨で取引可能")
+    
+    await interaction.followup.send(embed=embed)
     
     market_ref = db.collection("market_data")
     
