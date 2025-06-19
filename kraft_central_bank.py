@@ -284,6 +284,7 @@ async def admin_adjust_cmd(interaction: discord.Interaction, user: discord.Membe
         
     except Exception as e:
         print(f"残高調整エラー: {e}")
+        await interaction.followup.send("残高調整中にエラーが発生しました。", ephemeral=True)
 
 # エラーハンドリング
 @bot.event
