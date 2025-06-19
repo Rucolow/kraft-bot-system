@@ -42,8 +42,6 @@ intents.members = True
 
 # Bot作成
 bot = commands.Bot(command_prefix='!stock_', intents=intents)
-
-# 株式・銘柄データ（日本企業ベース）
 STOCK_DATA = {
     "9984": {
         "name": "ハードバンク",
@@ -193,24 +191,6 @@ MARKET_CONFIG = {
 
 # 通知チャンネルID
 INVESTMENT_NEWS_CHANNEL_ID = 1378237887446777997  # 投資ニュースチャンネル
-
-@bot.event
-async def on_ready():
-    print(f"\n📈 KRAFT株式市場Bot起動: {bot.user}")
-    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
-    
-    # 既存のコマンドを完全にクリア
-    print("\n🗑️ 既存コマンドをクリア...")
-    bot.tree.clear_commands(guild=None)
-    
-    # 市場データ初期化
-    await initialize_market_data()
-    
-    # =====================================
-    # 株価情報コマンド
-    # =====================================
-    @bot.tree.command(name="株価", description="現在の株価一覧を表示します")
-    async def stock_prices_cmd(interaction: discord.Interaction):
         print(f"[株価] {interaction.user.name} が実行")
         await interaction.response.defer()
             
@@ -255,20 +235,69 @@ async def on_ready():
                     inline=True
                 )
             
-            embed.set_footer(text="KRAFT株式市場")
-            await interaction.followup.send(embed=embed)
+# =====================================
+# 株価情報コマンド
+# =====================================
+@bot.tree.command(name="株価", description="現在の株価一覧を表示します")
+async def stock_prices_cmd(interaction: discord.Interaction):
+    print(f"[株価] {interaction.user.name} が実行")
+    await interaction.response.defer()
     
-    # =====================================
-    # 株式購入コマンド
-    # =====================================
-    @bot.tree.command(name="株式購入", description="株式を購入します")
-    async def buy_stock_cmd(interaction: discord.Interaction):
-        print(f"[株式購入] {interaction.user.name} が実行")
-        try:
-            # 市場開場時間チェック
-            if not is_market_open():
-                await interaction.response.send_message("🕒 市場は現在閉場中です。開場時間: 0:00-23:00 (UTC)", ephemeral=True)
-                return
+    embed = discord.Embed(
+        title="📈 KRAFT株式市場 - 現在の株価",
+        color=discord.Color.blue()
+    )
+    
+    market_ref = db.collection("market_data")
+    
+    for symbol, stock_info in STOCK_DATA.items():
+        # 現在価格取得
+        price_doc = market_ref.document(f"stock_{symbol}").get()
+        if price_doc.exists:
+            data = price_doc.to_dict()
+            current_price = data.get("current_price", stock_info["initial_price"])
+            change_percent = data.get("daily_change_percent", 0)
+            volume = data.get("daily_volume", 0)
+        else:
+            current_price = stock_info["initial_price"]
+            change_percent = 0
+            volume = 0
+        
+        # 変動表示
+        if change_percent > 0:
+            change_emoji = "📈"
+            color_indicator = "🟢"
+        elif change_percent < 0:
+            change_emoji = "📉"
+            color_indicator = "🔴"
+        else:
+            change_emoji = "➡️"
+            color_indicator = "⚪"
+        
+        embed.add_field(
+            name=f"{color_indicator} {stock_info['emoji']} {stock_info['name']}",
+            value=f"**{current_price:.2f} KR** {change_emoji}\n"
+                  f"変動: {change_percent:+.2f}%\n"
+                  f"出来高: {volume:,}株\n"
+                  f"業界: {stock_info['sector']}\n"
+                  f"配当: {stock_info['dividend']:.1f}%",
+            inline=True
+        )
+    
+    embed.set_footer(text="KRAFT株式市場")
+    await interaction.followup.send(embed=embed)
+
+# =====================================
+# 株式購入コマンド
+# =====================================
+@bot.tree.command(name="株式購入", description="株式を購入します")
+async def buy_stock_cmd(interaction: discord.Interaction):
+    print(f"[株式購入] {interaction.user.name} が実行")
+    try:
+        # 市場開場時間チェック
+        if not is_market_open():
+            await interaction.response.send_message("🕒 市場は現在閉場中です。開場時間: 0:00-23:00 (UTC)", ephemeral=True)
+            return
             
             # 日次取引制限チェック
             user_id = str(interaction.user.id)
@@ -376,21 +405,21 @@ async def on_ready():
             
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
-        except Exception as e:
-            print(f"株式購入コマンドエラー: {e}")
-            await interaction.response.send_message("❌ エラーが発生しました", ephemeral=True)
-    
-    # =====================================
-    # 株式売却コマンド
-    # =====================================
-    @bot.tree.command(name="株式売却", description="保有している株式を売却します")
-    async def sell_stock_cmd(interaction: discord.Interaction):
-        print(f"[株式売却] {interaction.user.name} が実行")
-        try:
-            # 市場開場時間チェック
-            if not is_market_open():
-                await interaction.response.send_message("🕒 市場は現在閉場中です。開場時間: 0:00-23:00 (UTC)", ephemeral=True)
-                return
+    except Exception as e:
+        print(f"株式購入コマンドエラー: {e}")
+        await interaction.response.send_message("❌ エラーが発生しました", ephemeral=True)
+
+# =====================================
+# 株式売却コマンド
+# =====================================
+@bot.tree.command(name="株式売却", description="保有している株式を売却します")
+async def sell_stock_cmd(interaction: discord.Interaction):
+    print(f"[株式売却] {interaction.user.name} が実行")
+    try:
+        # 市場開場時間チェック
+        if not is_market_open():
+            await interaction.response.send_message("🕒 市場は現在閉場中です。開場時間: 0:00-23:00 (UTC)", ephemeral=True)
+            return
             
             # 日次取引制限チェック
             user_id = str(interaction.user.id)
@@ -520,19 +549,19 @@ async def on_ready():
             
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
-        except Exception as e:
-            print(f"株式売却コマンドエラー: {e}")
-            await interaction.response.send_message("❌ エラーが発生しました", ephemeral=True)
+    except Exception as e:
+        print(f"株式売却コマンドエラー: {e}")
+        await interaction.response.send_message("❌ エラーが発生しました", ephemeral=True)
+
+# =====================================
+# ポートフォリオ確認コマンド
+# =====================================
+@bot.tree.command(name="ポートフォリオ", description="あなたの保有株式を確認します")
+async def portfolio_cmd(interaction: discord.Interaction):
+    print(f"[ポートフォリオ] {interaction.user.name} が実行")
+    await interaction.response.defer()
     
-    # =====================================
-    # ポートフォリオ確認コマンド
-    # =====================================
-    @bot.tree.command(name="ポートフォリオ", description="あなたの保有株式を確認します")
-    async def portfolio_cmd(interaction: discord.Interaction):
-        print(f"[ポートフォリオ] {interaction.user.name} が実行")
-        await interaction.response.defer()
-            
-            user_id = str(interaction.user.id)
+    user_id = str(interaction.user.id)
             portfolio = await get_user_portfolio(user_id)
             
             if not portfolio:
@@ -673,16 +702,16 @@ async def on_ready():
             
             embed.set_footer(text="KRAFT株式市場 | 構成比グラフ: █ = 5%")
             await interaction.followup.send(embed=embed)
+
+# =====================================
+# 投資ランキングコマンド
+# =====================================
+@bot.tree.command(name="投資ランキング", description="投資収益率ランキングを表示します")
+async def investment_ranking_cmd(interaction: discord.Interaction):
+    print(f"[投資ランキング] {interaction.user.name} が実行")
+    await interaction.response.defer()
     
-    # =====================================
-    # 投資ランキングコマンド
-    # =====================================
-    @bot.tree.command(name="投資ランキング", description="投資収益率ランキングを表示します")
-    async def investment_ranking_cmd(interaction: discord.Interaction):
-        print(f"[投資ランキング] {interaction.user.name} が実行")
-        await interaction.response.defer()
-            
-            # 全ユーザーのポートフォリオ取得
+    # 全ユーザーのポートフォリオ取得
             users_ref = db.collection("users")
             users = users_ref.stream()
             
@@ -746,11 +775,6 @@ async def on_ready():
             
             embed.set_footer(text="KRAFT株式市場")
             await interaction.followup.send(embed=embed)
-    
-    # =====================================
-    # Claude API ニュース生成関数
-    # =====================================
-    async def generate_market_news():
         """Claude APIを使用して市場ニュースを生成"""
         if not anthropic_client:
             return "📈 KRAFT市場が活発な取引を見せています"
@@ -868,15 +892,15 @@ async def on_ready():
         except Exception as e:
             print(f"市場影響適用エラー: {e}")
 
-    # =====================================
-    # 手動ニュース配信コマンド（管理者専用）
-    # =====================================
-    @bot.tree.command(name="市場ニュース配信", description="管理者専用：手動でAI市場ニュースを配信します")
-    async def manual_news_cmd(interaction: discord.Interaction, ニュース内容: str = None):
-        print(f"[市場ニュース配信] {interaction.user.name} が実行")
-        await interaction.response.defer(ephemeral=True)
-        
-        # 管理者確認
+# =====================================
+# 手動ニュース配信コマンド（管理者専用）
+# =====================================
+@bot.tree.command(name="市場ニュース配信", description="管理者専用：手動でAI市場ニュースを配信します")
+async def manual_news_cmd(interaction: discord.Interaction, ニュース内容: str = None):
+    print(f"[市場ニュース配信] {interaction.user.name} が実行")
+    await interaction.response.defer(ephemeral=True)
+    
+    # 管理者確認
         if str(interaction.user.id) not in ADMIN_USER_IDS:
             await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
             return
@@ -914,6 +938,166 @@ async def on_ready():
                 await interaction.followup.send("❌ 投資ニュースチャンネルが見つかりません。", ephemeral=True)
         else:
             await interaction.followup.send("❌ 投資ニュースチャンネルが設定されていません。", ephemeral=True)
+
+# 株式・銘柄データ（日本企業ベース）
+STOCK_DATA = {
+    "9984": {
+        "name": "ハードバンク",
+        "symbol": "9984",
+        "sector": "テクノロジー",
+        "initial_price": 1200,
+        "volatility": 0.06,  # 高ボラティリティ
+        "trend": 0.002,
+        "description": "通信事業、IT投資、AI開発",
+        "dividend": 1.5,
+        "emoji": "📱"
+    },
+    "7203": {
+        "name": "トミタ",
+        "symbol": "7203",
+        "sector": "自動車",
+        "initial_price": 2800,
+        "volatility": 0.04,
+        "trend": 0.001,
+        "description": "自動車製造、ハイブリッド、自動運転",
+        "dividend": 2.8,
+        "emoji": "🚗"
+    },
+    "8306": {
+        "name": "USJ銀行",
+        "symbol": "8306",
+        "sector": "金融",
+        "initial_price": 850,
+        "volatility": 0.05,
+        "trend": 0.0005,
+        "description": "商業銀行、証券、信託銀行",
+        "dividend": 4.2,
+        "emoji": "🏦"
+    },
+    "6758": {
+        "name": "ソミー",
+        "symbol": "6758",
+        "sector": "電機・精密機器",
+        "initial_price": 1800,
+        "volatility": 0.07,
+        "trend": 0.003,
+        "description": "ゲーム、映画、音楽、半導体",
+        "dividend": 1.2,
+        "emoji": "🎮"
+    },
+    "9432": {
+        "name": "ドモコ",
+        "symbol": "9432",
+        "sector": "通信",
+        "initial_price": 3200,
+        "volatility": 0.02,  # 低ボラティリティ
+        "trend": 0.0008,
+        "description": "移動通信、5G、データセンター",
+        "dividend": 3.8,
+        "emoji": "📞"
+    },
+    "3382": {
+        "name": "ナインイレブン",
+        "symbol": "3382",
+        "sector": "小売",
+        "initial_price": 1400,
+        "volatility": 0.03,
+        "trend": 0.001,
+        "description": "コンビニ、百貨店、スーパー",
+        "dividend": 2.5,
+        "emoji": "🏪"
+    },
+    "8801": {
+        "name": "住不動産",
+        "symbol": "8801",
+        "sector": "不動産",
+        "initial_price": 2600,
+        "volatility": 0.04,
+        "trend": 0.0005,
+        "description": "オフィスビル、商業施設、住宅分譲",
+        "dividend": 3.2,
+        "emoji": "🏢"
+    },
+    "4183": {
+        "name": "四菱ケミカル",
+        "symbol": "4183",
+        "sector": "素材・化学",
+        "initial_price": 920,
+        "volatility": 0.05,
+        "trend": 0.0012,
+        "description": "基礎化学、石油化学、機能材料",
+        "dividend": 3.5,
+        "emoji": "🧪"
+    },
+    "5401": {
+        "name": "新目鉄",
+        "symbol": "5401",
+        "sector": "鉄鋼・重工業",
+        "initial_price": 380,
+        "volatility": 0.08,  # 高ボラティリティ
+        "trend": 0.001,
+        "description": "鉄鋼製造、エンジニアリング",
+        "dividend": 4.8,
+        "emoji": "⚙️"
+    },
+    "2503": {
+        "name": "キリンジ",
+        "symbol": "2503",
+        "sector": "食品・飲料",
+        "initial_price": 1650,
+        "volatility": 0.02,  # ディフェンシブ
+        "trend": 0.0008,
+        "description": "ビール、清涼飲料、医薬品",
+        "dividend": 2.8,
+        "emoji": "🍺"
+    },
+    "9501": {
+        "name": "東京雷神",
+        "symbol": "9501",
+        "sector": "電力・ガス",
+        "initial_price": 680,
+        "volatility": 0.03,
+        "trend": 0.0005,
+        "description": "電力供給、ガス、再エネ",
+        "dividend": 0.0,  # 無配
+        "emoji": "⚡"
+    },
+    "4502": {
+        "name": "アステラサズ",
+        "symbol": "4502",
+        "sector": "医薬品",
+        "initial_price": 2200,
+        "volatility": 0.06,
+        "trend": 0.002,
+        "description": "医療用医薬品、ワクチン開発",
+        "dividend": 4.5,
+        "emoji": "💊"
+    }
+}
+
+# 市場設定
+MARKET_CONFIG = {
+    "trading_fee": 0.01,        # 取引手数料 1%
+    "min_trade_amount": 100,    # 最小取引額
+    "max_trade_amount": 1000000, # 最大取引額
+    "daily_trade_limit": 50,    # 1日の取引回数制限
+    "market_hours": {           # 市場開場時間（UTC）
+        "open": 0,   # 0時開場
+        "close": 23  # 23時終了
+    }
+}
+
+@bot.event
+async def on_ready():
+    print(f"\n📈 KRAFT株式市場Bot起動: {bot.user}")
+    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
+    
+    # 既存のコマンドを完全にクリア
+    print("\n🗑️ 既存コマンドをクリア...")
+    bot.tree.clear_commands(guild=None)
+    
+    # 市場データ初期化
+    await initialize_market_data()
     
     # =====================================
     # コマンド同期

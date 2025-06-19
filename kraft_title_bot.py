@@ -173,45 +173,6 @@ class KraftTitleBot(commands.Bot):
         self.tree.clear_commands(guild=None)
         
         
-        # =====================================
-        # 称号強制チェックコマンド（管理者専用）
-        # =====================================
-        @self.tree.command(name="称号強制チェック", description="全ユーザーの称号を強制チェックします（管理者専用）")
-        async def force_title_check_cmd(interaction: discord.Interaction):
-            print(f"[称号強制チェック] {interaction.user.name} が実行")
-            管理者ID一覧 = ["1249582099825164312", "867343308426444801"]
-            if str(interaction.user.id) not in 管理者ID一覧:
-                await interaction.response.send_message("❌ 管理者専用コマンドです。", ephemeral=True)
-                return
-            
-            await interaction.response.defer()
-            
-            try:
-                users_ref = db.collection("users")
-                users = users_ref.stream()
-                
-                total_users = 0
-                total_new_titles = 0
-                
-                for user_doc in users:
-                    user_id = user_doc.id
-                    new_titles = await self.check_user_titles(user_id)
-                    total_users += 1
-                    total_new_titles += len(new_titles)
-                    
-                    # 新しい称号があればロール付与と通知
-                    for title in new_titles:
-                        await self.assign_discord_role(user_id, title)
-                        await self.send_title_notification(user_id, title)
-                
-                await interaction.followup.send(
-                    f"✅ 称号チェック完了\n"
-                    f"チェック対象: {total_users}人\n"
-                    f"新規称号付与: {total_new_titles}個"
-                )
-                
-            except Exception as e:
-                await interaction.followup.send(f"❌ エラー: {str(e)}")
         
         # =====================================
         # コマンド同期
@@ -524,7 +485,44 @@ class KraftTitleBot(commands.Bot):
     async def before_monthly_reset_task(self):
         await self.wait_until_ready()
 
+# =====================================
+# 称号強制チェックコマンド（管理者専用）
+# =====================================
+async def force_title_check_cmd(interaction: discord.Interaction):
+    print(f"[称号強制チェック] {interaction.user.name} が実行")
+    管理者ID一覧 = ["1249582099825164312", "867343308426444801"]
+    if str(interaction.user.id) not in 管理者ID一覧:
+        await interaction.response.send_message("❌ 管理者専用コマンドです。", ephemeral=True)
+        return
+    
+    await interaction.response.defer()
+    
+    bot = interaction.client
+    users_ref = db.collection("users")
+    users = users_ref.stream()
+    
+    total_users = 0
+    total_new_titles = 0
+    
+    for user_doc in users:
+        user_id = user_doc.id
+        new_titles = await bot.check_user_titles(user_id)
+        total_users += 1
+        total_new_titles += len(new_titles)
+        
+        # 新しい称号があればロール付与と通知
+        for title in new_titles:
+            await bot.assign_discord_role(user_id, title)
+            await bot.send_title_notification(user_id, title)
+    
+    await interaction.followup.send(
+        f"✅ 称号チェック完了\n"
+        f"チェック対象: {total_users}人\n"
+        f"新規称号付与: {total_new_titles}個"
+    )
+
 # Bot起動
 if __name__ == "__main__":
     bot = KraftTitleBot()
+    bot.tree.command(name="称号強制チェック", description="全ユーザーの称号を強制チェックします（管理者専用）")(force_title_check_cmd)
     bot.run(TOKEN)

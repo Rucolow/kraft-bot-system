@@ -34,20 +34,11 @@ intents.members = True
 # Bot作成
 bot = commands.Bot(command_prefix='!bank_', intents=intents)
 
-@bot.event
-async def on_ready():
-    print(f"\n🏦 KRAFT中央銀行Bot起動: {bot.user}")
-    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
-    
-    # 既存のコマンドを完全にクリア
-    print("\n🗑️ 既存コマンドをクリア...")
-    bot.tree.clear_commands(guild=None)
-    
-    # =====================================
-    # 残高確認コマンド
-    # =====================================
-    @bot.tree.command(name="残高", description="あなたのKR残高を確認します")
-    async def balance_cmd(interaction: discord.Interaction):
+# =====================================
+# 残高確認コマンド
+# =====================================
+@bot.tree.command(name="残高", description="あなたのKR残高を確認します")
+async def balance_cmd(interaction: discord.Interaction):
         print(f"[残高] {interaction.user.name} が実行")
         await interaction.response.defer(ephemeral=True)
         
@@ -79,12 +70,12 @@ async def on_ready():
         
         await interaction.followup.send(embed=embed, ephemeral=True)
         print(f"残高確認成功: {balance} KR")
-    
-    # =====================================
-    # 送金コマンド
-    # =====================================
-    @bot.tree.command(name="送金", description="他のユーザーにKRを送金します")
-    async def transfer_cmd(interaction: discord.Interaction, recipient: discord.Member, 金額: int):
+
+# =====================================
+# 送金コマンド
+# =====================================
+@bot.tree.command(name="送金", description="他のユーザーにKRを送金します")
+async def transfer_cmd(interaction: discord.Interaction, recipient: discord.Member, 金額: int):
         print(f"[送金] {interaction.user.name} → {recipient.name}: {金額}KR")
         await interaction.response.defer()
         
@@ -174,19 +165,18 @@ async def on_ready():
         await interaction.followup.send(f"{recipient.mention}", embed=notification_embed)
         
         print(f"送金成功: {金額} KR")
-    
-    # =====================================
-    # スロットコマンド
-    # =====================================
-    @bot.tree.command(name="スロット", description="スロットマシンで遊びます（100-10,000 KR）")
-    async def slot_cmd(interaction: discord.Interaction, 金額: int):
+
+# =====================================
+# スロットコマンド
+# =====================================
+@bot.tree.command(name="スロット", description="スロットマシンで遊びます（100-10,000 KR）")
+async def slot_cmd(interaction: discord.Interaction, 金額: int):
         print(f"[スロット] {interaction.user.name}: {金額}KR")
-        try:
-            await interaction.response.defer()
-            
-            if 金額 < 100 or 金額 > 10000:
-                await interaction.followup.send("ベット額は100〜10,000 KRの間で指定してください。")
-                return
+        await interaction.response.defer()
+        
+        if 金額 < 100 or 金額 > 10000:
+            await interaction.followup.send("ベット額は100〜10,000 KRの間で指定してください。")
+            return
             
             user_id = str(interaction.user.id)
             user_ref = db.collection("users").document(user_id)
@@ -245,24 +235,19 @@ async def on_ready():
             embed.set_footer(text="KRAFT中央銀行")
             await interaction.followup.send(embed=embed)
             print(f"スロット結果: {win_amount} KR獲得")
-            
-        except Exception as e:
-            print(f"スロットエラー: {e}")
-            await interaction.followup.send("スロット処理中にエラーが発生しました。")
-    
-    # =====================================
-    # 残高調整コマンド（管理者専用）
-    # =====================================
-    @bot.tree.command(name="残高調整", description="管理者専用：ユーザーの残高を調整します")
-    async def admin_adjust_cmd(interaction: discord.Interaction, user: discord.Member, 金額: int, 理由: str):
+
+# =====================================
+# 残高調整コマンド（管理者専用）
+# =====================================
+@bot.tree.command(name="残高調整", description="管理者専用：ユーザーの残高を調整します")
+async def admin_adjust_cmd(interaction: discord.Interaction, user: discord.Member, 金額: int, 理由: str):
         print(f"[残高調整] {interaction.user.name} → {user.name}: {金額}KR ({理由})")
-        try:
-            await interaction.response.defer(ephemeral=True)
-            
-            # 管理者確認
-            if str(interaction.user.id) not in ADMIN_USER_IDS:
-                await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
-                return
+        await interaction.response.defer(ephemeral=True)
+        
+        # 管理者確認
+        if str(interaction.user.id) not in ADMIN_USER_IDS:
+            await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
+            return
             
             user_id = str(user.id)
             user_ref = db.collection("users").document(user_id)
@@ -295,10 +280,15 @@ async def on_ready():
             
             await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"残高調整完了: {new_balance} KR")
-            
-        except Exception as e:
-            print(f"残高調整エラー: {e}")
-            await interaction.followup.send("残高調整中にエラーが発生しました。", ephemeral=True)
+
+@bot.event
+async def on_ready():
+    print(f"\n🏦 KRAFT中央銀行Bot起動: {bot.user}")
+    print(f"接続サーバー: {[g.name for g in bot.guilds]}")
+    
+    # 既存のコマンドを完全にクリア
+    print("\n🗑️ 既存コマンドをクリア...")
+    bot.tree.clear_commands(guild=None)
     
     # =====================================
     # コマンド同期
