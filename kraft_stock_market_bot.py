@@ -980,7 +980,7 @@ async def execute_stock_sale(user_id: str, symbol: str, shares: int, price: floa
                     print(f"[DEBUG] {symbol}の株数を{remaining_shares}株に更新")
                 
                 print(f"[DEBUG] 売却後のholdings: {holdings}")
-                batch.set(portfolio_ref, {"holdings": holdings}, merge=True)
+                batch.update(portfolio_ref, {"holdings": holdings})
             else:
                 print(f"[DEBUG] エラー: {symbol}がポートフォリオに見つかりません")
         
