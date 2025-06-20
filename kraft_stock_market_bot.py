@@ -782,18 +782,22 @@ async def on_ready():
     async def news_test_cmd(interaction: discord.Interaction):
         print(f"[ニューステスト] {interaction.user.name} が実行")
         try:
+            # 管理者確認（defer前に実行）
+            if str(interaction.user.id) not in ADMIN_USER_IDS:
+                await interaction.response.send_message("このコマンドは管理者のみ使用できます。", ephemeral=True)
+                return
+            
+            # 管理者の場合はdefer
             await interaction.response.defer(ephemeral=True)
             
-            # 管理者確認
-            if str(interaction.user.id) not in ADMIN_USER_IDS:
-                await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
-                return
+            # 即座に処理開始メッセージを送信
+            await interaction.followup.send("🔄 ニュース生成中...", ephemeral=True)
             
             # ニュース生成テスト
             print("[DEBUG] テスト用ニュース生成開始...")
             news = await generate_market_news()
             
-            # テスト結果をephemerla返信
+            # テスト結果を編集で更新
             embed = discord.Embed(
                 title="🧪 ニューステスト結果",
                 description=news,
@@ -807,6 +811,7 @@ async def on_ready():
             )
             embed.set_footer(text="テスト実行完了")
             
+            # 新しいメッセージとして送信
             await interaction.followup.send(embed=embed, ephemeral=True)
             
             # 実際のニュースチャンネルにも投稿
@@ -826,7 +831,13 @@ async def on_ready():
             
         except Exception as e:
             print(f"ニューステストエラー: {e}")
-            await interaction.followup.send("ニューステスト中にエラーが発生しました。", ephemeral=True)
+            import traceback
+            traceback.print_exc()
+            try:
+                await interaction.followup.send("ニューステスト中にエラーが発生しました。", ephemeral=True)
+            except:
+                # interaction が既に無効な場合は無視
+                pass
     
     # =====================================
     # コマンド同期
