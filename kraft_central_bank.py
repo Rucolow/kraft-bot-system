@@ -298,12 +298,22 @@ async def on_ready():
     print(f"\n🏦 KRAFT中央銀行Bot起動: {bot.user}")
     print(f"接続サーバー: {[g.name for g in bot.guilds]}")
     
+    # 既存のコマンドを完全にクリア
+    print("\n🗑️ 既存コマンドをクリア...")
+    bot.tree.clear_commands(guild=None)
+    
     print("\n🔄 コマンドを同期中...")
     try:
         synced = await bot.tree.sync()
         print(f"✅ {len(synced)}個のコマンドが同期されました！")
         for cmd in synced:
             print(f"  - /{cmd.name}: {cmd.description}")
+        
+        print("\n🎯 利用可能なコマンド:")
+        print("  /残高 - 残高確認")
+        print("  /送金 - KR送金")
+        print("  /スロット - スロットマシン")
+        print("  /残高調整 - 管理者専用")
     except Exception as e:
         print(f"❌ コマンド同期失敗: {e}")
 
