@@ -787,11 +787,8 @@ async def on_ready():
                 await interaction.response.send_message("このコマンドは管理者のみ使用できます。", ephemeral=True)
                 return
             
-            # 管理者の場合はdefer
-            await interaction.response.defer(ephemeral=True)
-            
-            # 即座に処理開始メッセージを送信
-            await interaction.followup.send("🔄 ニュース生成中...", ephemeral=True)
+            # 管理者の場合は即座にレスポンス
+            await interaction.response.send_message("🔄 ニュース生成中...", ephemeral=True)
             
             # ニュース生成テスト
             print("[DEBUG] テスト用ニュース生成開始...")
@@ -834,7 +831,10 @@ async def on_ready():
             import traceback
             traceback.print_exc()
             try:
-                await interaction.followup.send("ニューステスト中にエラーが発生しました。", ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("ニューステスト中にエラーが発生しました。", ephemeral=True)
+                else:
+                    await interaction.followup.send("ニューステスト中にエラーが発生しました。", ephemeral=True)
             except:
                 # interaction が既に無効な場合は無視
                 pass
@@ -1163,10 +1163,22 @@ async def generate_market_news() -> str:
                 market_doc = market_ref.get()
                 
                 if market_doc.exists:
-                    price_history = market_doc.to_dict().get("price_history", [])
+                    market_data_dict = market_doc.to_dict()
+                    price_history = market_data_dict.get("price_history", [])
+                    
+                    # price_historyの構造をチェック
                     if len(price_history) >= 2:
-                        previous_price = price_history[-2]["price"]
-                        change_percent = ((current_price - previous_price) / previous_price) * 100
+                        try:
+                            # 辞書形式の場合
+                            if isinstance(price_history[-2], dict):
+                                previous_price = price_history[-2]["price"]
+                            # 数値のみの場合
+                            else:
+                                previous_price = float(price_history[-2])
+                            change_percent = ((current_price - previous_price) / previous_price) * 100
+                        except (KeyError, TypeError, ValueError) as e:
+                            print(f"価格履歴解析エラー {symbol}: {e}")
+                            change_percent = 0
                     else:
                         change_percent = 0
                 else:
@@ -1184,12 +1196,17 @@ async def generate_market_news() -> str:
                 print(f"株価データ取得エラー {symbol}: {e}")
                 continue
         
+        # market_dataが空でないかチェック
+        if not market_data:
+            print("市場データが取得できませんでした")
+            return "📊 KRAFT市場は現在データ更新中です。しばらくお待ちください。"
+        
         # 上昇・下落トップ3を取得
         top_gainers = sorted(market_data, key=lambda x: x["change_percent"], reverse=True)[:3]
         top_losers = sorted(market_data, key=lambda x: x["change_percent"])[:3]
         
         # Claude APIでニュース生成
-        if anthropic_client:
+        if anthropic_client and market_data:
             market_summary = f"""
 現在のKRAFT株式市場の状況:
 
@@ -1200,6 +1217,9 @@ async def generate_market_news() -> str:
 {chr(10).join([f"- {stock['emoji']} {stock['name']} ({stock['symbol']}): {stock['current_price']:.0f}KR ({stock['change_percent']:+.1f}%)" for stock in top_losers])}
 """
             
+            # 銘柄選択もsafeに
+            selected_stock = random.choice(market_data) if market_data else {"name": "主要銘柄"}
+            
             prompt = f"""KRAFT株式市場の投資ニュースを1つ生成してください。
 
 {market_summary}
@@ -1209,7 +1229,7 @@ async def generate_market_news() -> str:
 - 実際の株価データに基づく内容
 - 投資家にとって有益な情報
 - 日本語で自然な文章
-- 銘柄名は「{random.choice(market_data)['name']}」などを含める
+- 銘柄名は「{selected_stock['name']}」などを含める
 - 絵文字を1-2個使用
 - 投機的でない、事実ベースの内容
 
