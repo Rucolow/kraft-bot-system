@@ -1328,14 +1328,21 @@ async def apply_news_stock_effect(symbol: str, event_type: str, news_content: st
         if market_doc.exists:
             market_data = market_doc.to_dict()
             
-            # 価格履歴を更新
+            # 価格履歴を更新（現在時刻を使用）
+            import datetime
+            current_time = datetime.datetime.now(datetime.timezone.utc)
+            
             price_history = market_data.get("price_history", [])
             price_history.append({
                 "price": new_price,
-                "timestamp": firestore.SERVER_TIMESTAMP,
+                "timestamp": current_time,
                 "change_percent": change_percent,
                 "reason": f"ニュース影響: {event_type}"
             })
+            
+            # 履歴を最新の10件に制限
+            if len(price_history) > 10:
+                price_history = price_history[-10:]
             
             # 最新の価格も更新
             market_ref.update({
