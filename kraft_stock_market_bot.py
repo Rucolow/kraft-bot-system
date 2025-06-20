@@ -24,7 +24,11 @@ ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").split(",")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 # Anthropic クライアント初期化
-anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+try:
+    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+except Exception as e:
+    print(f"Anthropic初期化エラー: {e}")
+    anthropic_client = None
 
 # Firebase初期化（共有）
 if not firebase_admin._apps:
