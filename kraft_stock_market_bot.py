@@ -385,21 +385,27 @@ async def on_ready():
     # =====================================
     @bot.tree.command(name="株式売却", description="保有している株式を売却します")
     async def sell_stock_cmd(interaction: discord.Interaction):
-        print(f"[株式売却] {interaction.user.name} が実行")
+        print(f"[DEBUG] 株式売却コマンド開始: {interaction.user.name}")
         try:
             # 市場開場時間チェック
+            print(f"[DEBUG] 市場開場チェック...")
             if not is_market_open():
+                print(f"[DEBUG] 市場閉場中のためコマンド終了")
                 await interaction.response.send_message("🕒 市場は現在閉場中です。開場時間: 0:00-23:00 (UTC)", ephemeral=True)
                 return
             
             # 日次取引制限チェック
             user_id = str(interaction.user.id)
+            print(f"[DEBUG] 日次取引制限チェック: user_id={user_id}")
             if not await check_daily_trade_limit(user_id):
+                print(f"[DEBUG] 取引制限に達しているためコマンド終了")
                 await interaction.response.send_message(f"❌ 1日の取引回数制限({MARKET_CONFIG['daily_trade_limit']}回)に達しています", ephemeral=True)
                 return
             
             # ポートフォリオ取得
+            print(f"[DEBUG] ポートフォリオ取得中...")
             portfolio = await get_user_portfolio(user_id)
+            print(f"[DEBUG] ポートフォリオ: {portfolio}")
             
             if not portfolio:
                 await interaction.response.send_message("📊 保有株式がありません", ephemeral=True)
@@ -478,7 +484,9 @@ async def on_ready():
                                 profit_loss = (current_price - avg_cost) * shares
                                 
                                 # 取引実行
+                                print(f"[DEBUG] execute_stock_sale呼び出し前: user_id={user_id}, symbol={selected_symbol}, shares={shares}, price={current_price}, total_value={total_value}")
                                 new_balance = await execute_stock_sale(user_id, selected_symbol, shares, current_price, total_value)
+                                print(f"[DEBUG] execute_stock_sale呼び出し後: new_balance={new_balance}")
                                 
                                 embed = discord.Embed(
                                     title="📉 株式売却完了",
