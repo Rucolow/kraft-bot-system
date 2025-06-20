@@ -299,9 +299,6 @@ async def on_ready():
             print(f"残高調整エラー: {e}")
             await interaction.followup.send("残高調整中にエラーが発生しました。", ephemeral=True)
     
-    # =====================================
-    # コマンド同期
-    # =====================================
     print("\n🔄 コマンドを同期中...")
     try:
         synced = await bot.tree.sync()
@@ -316,8 +313,7 @@ async def on_ready():
         print("  /残高調整 - 管理者専用")
     except Exception as e:
         print(f"❌ コマンド同期失敗: {e}")
-        import traceback
-        traceback.print_exc()
+
 
 # エラーハンドリング
 @bot.event
