@@ -954,20 +954,27 @@ async def execute_stock_sale(user_id: str, symbol: str, shares: int, price: floa
         
         if portfolio_doc.exists:
             holdings = portfolio_doc.to_dict().get("holdings", {})
+            print(f"[DEBUG] 売却前のholdings: {holdings}")
             
             if symbol in holdings:
                 # 現在の保有株数から売却株数を減算
                 current_shares = holdings[symbol]["shares"]
                 remaining_shares = current_shares - shares
+                print(f"[DEBUG] {symbol}: 現在{current_shares}株 → 売却{shares}株 → 残り{remaining_shares}株")
                 
                 if remaining_shares <= 0:
                     # 全て売却した場合は該当銘柄を削除
                     del holdings[symbol]
+                    print(f"[DEBUG] {symbol}を完全売却、ポートフォリオから削除")
                 else:
                     # 残りがある場合は株数を更新
                     holdings[symbol]["shares"] = remaining_shares
+                    print(f"[DEBUG] {symbol}の株数を{remaining_shares}株に更新")
                 
+                print(f"[DEBUG] 売却後のholdings: {holdings}")
                 batch.set(portfolio_ref, {"holdings": holdings}, merge=True)
+            else:
+                print(f"[DEBUG] エラー: {symbol}がポートフォリオに見つかりません")
         
         # 取引ログ
         today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
@@ -991,7 +998,9 @@ async def execute_stock_sale(user_id: str, symbol: str, shares: int, price: floa
             batch.update(market_ref, {"daily_volume": current_volume + shares})
         
         # バッチ実行
+        print(f"[DEBUG] バッチ処理を実行中...")
         batch.commit()
+        print(f"[DEBUG] バッチ処理完了: 残高{new_balance}KR")
         
         return new_balance
         
