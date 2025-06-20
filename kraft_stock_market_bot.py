@@ -951,13 +951,23 @@ async def execute_stock_sale(user_id: str, symbol: str, shares: int, price: floa
         # ポートフォリオ更新
         portfolio_ref = db.collection("portfolios").document(user_id)
         portfolio_doc = portfolio_ref.get()
-        holdings = portfolio_doc.to_dict().get("holdings", {})
         
-        holdings[symbol]["shares"] -= shares
-        if holdings[symbol]["shares"] <= 0:
-            del holdings[symbol]
-        
-        batch.set(portfolio_ref, {"holdings": holdings}, merge=True)
+        if portfolio_doc.exists:
+            holdings = portfolio_doc.to_dict().get("holdings", {})
+            
+            if symbol in holdings:
+                # 現在の保有株数から売却株数を減算
+                current_shares = holdings[symbol]["shares"]
+                remaining_shares = current_shares - shares
+                
+                if remaining_shares <= 0:
+                    # 全て売却した場合は該当銘柄を削除
+                    del holdings[symbol]
+                else:
+                    # 残りがある場合は株数を更新
+                    holdings[symbol]["shares"] = remaining_shares
+                
+                batch.set(portfolio_ref, {"holdings": holdings}, merge=True)
         
         # 取引ログ
         today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
