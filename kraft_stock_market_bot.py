@@ -12,6 +12,7 @@ import asyncio
 import math
 import json
 from typing import Dict, List, Optional, Tuple, Any
+import anthropic
 
 print("📈 KRAFT株式市場Bot - 開発版")
 print("=" * 50)
@@ -20,6 +21,10 @@ print("=" * 50)
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN_STOCK_MARKET_BOT")
 ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").split(",")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# Anthropic クライアント初期化
+anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 # Firebase初期化（共有）
 if not firebase_admin._apps:
@@ -29,6 +34,7 @@ db = firestore.client()
 
 print(f"Token: {'OK' if TOKEN else 'NG'}")
 print(f"Admin IDs: {ADMIN_USER_IDS}")
+print(f"Anthropic API: {'OK' if ANTHROPIC_API_KEY else 'NG'}")
 
 # Intents設定
 intents = discord.Intents.default()
@@ -764,6 +770,59 @@ async def on_ready():
         except Exception as e:
             print(f"投資ランキング表示エラー: {e}")
             await interaction.followup.send("ランキング取得中にエラーが発生しました")
+
+    # =====================================
+    # ニューステストコマンド（管理者専用）
+    # =====================================
+    @bot.tree.command(name="ニューステスト", description="管理者専用：投資ニュースを手動生成してテストします")
+    async def news_test_cmd(interaction: discord.Interaction):
+        print(f"[ニューステスト] {interaction.user.name} が実行")
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # 管理者確認
+            if str(interaction.user.id) not in ADMIN_USER_IDS:
+                await interaction.followup.send("このコマンドは管理者のみ使用できます。", ephemeral=True)
+                return
+            
+            # ニュース生成テスト
+            print("[DEBUG] テスト用ニュース生成開始...")
+            news = await generate_market_news()
+            
+            # テスト結果をephemerla返信
+            embed = discord.Embed(
+                title="🧪 ニューステスト結果",
+                description=news,
+                color=discord.Color.green(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
+            )
+            embed.add_field(
+                name="📊 設定", 
+                value=f"配信頻度: 2時間ごと (60%確率)\nチャンネル: <#{INVESTMENT_NEWS_CHANNEL_ID}>\nAI: {'有効' if anthropic_client else '無効'}",
+                inline=False
+            )
+            embed.set_footer(text="テスト実行完了")
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+            # 実際のニュースチャンネルにも投稿
+            if INVESTMENT_NEWS_CHANNEL_ID:
+                channel = bot.get_channel(INVESTMENT_NEWS_CHANNEL_ID)
+                if channel:
+                    news_embed = discord.Embed(
+                        title="📰 KRAFT市場ニュース（テスト）",
+                        description=news,
+                        color=discord.Color.blue(),
+                        timestamp=datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    news_embed.set_footer(text="KRAFT株式市場 | AI生成ニュース（テスト）")
+                    await channel.send(embed=news_embed)
+            
+            print(f"ニューステスト完了: {news}")
+            
+        except Exception as e:
+            print(f"ニューステストエラー: {e}")
+            await interaction.followup.send("ニューステスト中にエラーが発生しました。", ephemeral=True)
     
     # =====================================
     # コマンド同期
@@ -781,6 +840,7 @@ async def on_ready():
         print("  /株式売却 [銘柄] [株数] - 株式売却")
         print("  /ポートフォリオ [ユーザー] - ポートフォリオ確認")
         print("  /投資ランキング - 投資収益率ランキング")
+        print("  /ニューステスト - 管理者専用：投資ニュース生成テスト")
         
         # バックグラウンドタスク開始
         if not price_update_task.is_running():
@@ -1076,38 +1136,132 @@ async def price_update_task():
     except Exception as e:
         print(f"株価更新エラー: {e}")
 
-@tasks.loop(hours=6)
-async def market_news_task():
-    """市場ニュース・イベントタスク（6時間間隔）"""
+async def generate_market_news() -> str:
+    """Claude APIを使用して動的な市場ニュースを生成"""
     try:
-        # ランダムな市場イベント生成
-        events = [
-            "📈 KRAFT市場が好調な推移を見せています",
-            "📊 新技術発表により関連銘柄が注目されています", 
-            "💼 機関投資家による大口取引が確認されました",
-            "🌟 市場参加者数が増加傾向にあります",
-            "⚡ システムアップデートが予定されています"
-        ]
+        # 現在の株価データを取得
+        market_data = []
+        for symbol, stock_info in STOCK_DATA.items():
+            try:
+                current_price = await get_current_stock_price(symbol)
+                market_ref = db.collection("market_data").document(f"stock_{symbol}")
+                market_doc = market_ref.get()
+                
+                if market_doc.exists:
+                    price_history = market_doc.to_dict().get("price_history", [])
+                    if len(price_history) >= 2:
+                        previous_price = price_history[-2]["price"]
+                        change_percent = ((current_price - previous_price) / previous_price) * 100
+                    else:
+                        change_percent = 0
+                else:
+                    change_percent = 0
+                
+                market_data.append({
+                    "symbol": symbol,
+                    "name": stock_info["name"],
+                    "sector": stock_info["sector"],
+                    "current_price": current_price,
+                    "change_percent": round(change_percent, 2),
+                    "emoji": stock_info["emoji"]
+                })
+            except Exception as e:
+                print(f"株価データ取得エラー {symbol}: {e}")
+                continue
         
-        if random.random() < 0.3:  # 30%の確率でニュース配信
-            news = random.choice(events)
+        # 上昇・下落トップ3を取得
+        top_gainers = sorted(market_data, key=lambda x: x["change_percent"], reverse=True)[:3]
+        top_losers = sorted(market_data, key=lambda x: x["change_percent"])[:3]
+        
+        # Claude APIでニュース生成
+        if anthropic_client:
+            market_summary = f"""
+現在のKRAFT株式市場の状況:
+
+上昇銘柄トップ3:
+{chr(10).join([f"- {stock['emoji']} {stock['name']} ({stock['symbol']}): {stock['current_price']:.0f}KR ({stock['change_percent']:+.1f}%)" for stock in top_gainers])}
+
+下落銘柄トップ3:
+{chr(10).join([f"- {stock['emoji']} {stock['name']} ({stock['symbol']}): {stock['current_price']:.0f}KR ({stock['change_percent']:+.1f}%)" for stock in top_losers])}
+"""
             
-            # ニュースチャンネルに投稿（チャンネルIDが設定されていれば）
+            prompt = f"""KRAFT株式市場の投資ニュースを1つ生成してください。
+
+{market_summary}
+
+要件:
+- 150文字以内
+- 実際の株価データに基づく内容
+- 投資家にとって有益な情報
+- 日本語で自然な文章
+- 銘柄名は「{random.choice(market_data)['name']}」などを含める
+- 絵文字を1-2個使用
+- 投機的でない、事実ベースの内容
+
+例: 📊 ハードバンクが+2.1%上昇し1,247KRで取引されています。テクノロジーセクター全体の好調な業績が投資家の関心を集めています。"""
+            
+            response = anthropic_client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            return response.content[0].text.strip()
+        
+        else:
+            # Claude APIが利用できない場合のフォールバック
+            if top_gainers and top_gainers[0]["change_percent"] > 1:
+                stock = top_gainers[0]
+                return f"📈 {stock['emoji']} {stock['name']}が{stock['change_percent']:+.1f}%上昇し、{stock['current_price']:.0f}KRで取引されています。{stock['sector']}セクターへの関心が高まっています。"
+            elif top_losers and top_losers[0]["change_percent"] < -1:
+                stock = top_losers[0]
+                return f"📉 {stock['emoji']} {stock['name']}が{stock['change_percent']:+.1f}%下落し、{stock['current_price']:.0f}KRで取引されています。市場では様子見の姿勢が続いています。"
+            else:
+                return f"📊 KRAFT市場は安定した推移を見せています。各セクターでバランスの取れた取引が継続中です。"
+    
+    except Exception as e:
+        print(f"ニュース生成エラー: {e}")
+        # エラー時のフォールバック
+        fallback_news = [
+            "📈 KRAFT市場が堅調な推移を継続しています",
+            "📊 投資家の関心が多様化し、各セクターで活発な取引が見られます",
+            "💼 市場参加者の投資戦略に注目が集まっています"
+        ]
+        return random.choice(fallback_news)
+
+@tasks.loop(hours=2)  # 2時間間隔に短縮
+async def market_news_task():
+    """市場ニュース・イベントタスク（2時間間隔、AI生成）"""
+    try:
+        if random.random() < 0.6:  # 60%の確率でニュース配信（頻度向上）
+            print("[DEBUG] 市場ニュース生成開始...")
+            news = await generate_market_news()
+            
+            # ニュースチャンネルに投稿
             if INVESTMENT_NEWS_CHANNEL_ID:
                 channel = bot.get_channel(INVESTMENT_NEWS_CHANNEL_ID)
                 if channel:
                     embed = discord.Embed(
                         title="📰 KRAFT市場ニュース",
                         description=news,
-                        color=discord.Color.blue()
+                        color=discord.Color.blue(),
+                        timestamp=datetime.datetime.now(datetime.timezone.utc)
                     )
-                    embed.set_footer(text="KRAFT株式市場")
+                    embed.set_footer(text="KRAFT株式市場 | AI生成ニュース")
+                    
                     await channel.send(embed=embed)
+                    print(f"[DEBUG] 市場ニュース配信成功: {news[:50]}...")
+                else:
+                    print(f"[DEBUG] ニュースチャンネルが見つかりません: {INVESTMENT_NEWS_CHANNEL_ID}")
+            else:
+                print("[DEBUG] ニュースチャンネルIDが設定されていません")
             
             print(f"市場ニュース配信: {news}")
     
     except Exception as e:
         print(f"市場ニュースエラー: {e}")
+        import traceback
+        traceback.print_exc()
 
 @price_update_task.before_loop
 async def before_price_update():
