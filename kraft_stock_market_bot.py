@@ -1236,7 +1236,7 @@ async def generate_market_news() -> str:
 {market_summary}
 
 要件:
-- 200文字以内
+- 180文字以内で完結する文章
 - イベント型: {event_type}
 - 対象企業: {selected_stock['name']} ({selected_stock['sector']}セクター)
 - 株価に大きな影響を与える劇的な出来事
@@ -1244,6 +1244,7 @@ async def generate_market_news() -> str:
 - 日本語で自然で興味深い文章
 - 絵文字を2-3個使用
 - リアルな企業活動として成立する内容
+- 文章は必ず完結させること
 
 参考例:
 - 「🚨 ハードバンクが次世代AI技術の革命的特許を取得！業界関係者は『ゲームチェンジャー』と評価」
@@ -1254,23 +1255,35 @@ async def generate_market_news() -> str:
             
             response = anthropic_client.messages.create(
                 model="claude-3-haiku-20240307",
-                max_tokens=200,
+                max_tokens=300,  # 増加
                 messages=[{"role": "user", "content": prompt}]
             )
             
-            return response.content[0].text.strip()
+            news_content = response.content[0].text.strip()
+            
+            # ニュースに基づいて株価を変動させる
+            await apply_news_stock_effect(selected_stock['symbol'], event_type, news_content)
+            
+            return news_content
         
         else:
             # Claude APIが利用できない場合のフォールバック - 劇的なニュース
-            dramatic_events = [
-                f"🚨 {top_gainers[0]['name']}が革新的技術を発表！業界に衝撃が走り、株価が{top_gainers[0]['change_percent']:+.1f}%急騰中！",
-                f"💥 {top_losers[0]['name']}で予期せぬ問題が発覚。株価は{top_losers[0]['change_percent']:+.1f}%下落し、投資家は動向を注視。",
-                f"🔥 {random.choice(market_data)['name']}がライバル企業との提携を発表！{random.choice(market_data)['sector']}業界の勢力図が変わる可能性。",
-                f"⚡ {random.choice(market_data)['name']}のCEOが重大発表を予告。市場関係者の間で憶測が飛び交っています。",
-                f"🌟 {random.choice(market_data)['name']}が新市場参入を発表！{random.choice(market_data)['sector']}セクター全体に波紋が広がる。"
+            selected_stock = random.choice(market_data)
+            event_choices = [
+                ("🚨 {}が革新的技術を発表！業界に衝撃が走り、投資家の期待が高まる。", "技術革新"),
+                ("💥 {}で予期せぬ問題が発覚。投資家は今後の動向を注視している。", "事故・問題"),
+                ("🔥 {}がライバル企業との提携を発表！{}業界の勢力図が変わる可能性。", "提携発表"),
+                ("⚡ {}のCEOが重大発表を予告。市場関係者の間で憶測が飛び交っています。", "CEO交代"),
+                ("🌟 {}が新市場参入を発表！{}セクター全体に波紋が広がる。", "市場参入")
             ]
             
-            return random.choice(dramatic_events)
+            news_template, event_type = random.choice(event_choices)
+            news_content = news_template.format(selected_stock['name'], selected_stock['sector'])
+            
+            # フォールバック時も株価変動を適用
+            await apply_news_stock_effect(selected_stock['symbol'], event_type, news_content)
+            
+            return news_content
     
     except Exception as e:
         print(f"ニュース生成エラー: {e}")
@@ -1283,6 +1296,58 @@ async def generate_market_news() -> str:
             "🌪️ 予想外の規制変更案が浮上、関連セクター全体に激震が走る"
         ]
         return random.choice(fallback_news)
+
+async def apply_news_stock_effect(symbol: str, event_type: str, news_content: str):
+    """ニュース内容に基づいて株価を変動させる"""
+    try:
+        # イベントタイプに基づく基本的な変動率
+        positive_events = ["新商品発表", "技術革新", "提携発表", "特許取得", "業績上方修正", "設備投資", "市場参入"]
+        negative_events = ["事故・問題", "業績下方修正", "CEO交代", "規制変更"]
+        
+        # 変動率を決定（-15%から+15%の範囲）
+        if event_type in positive_events:
+            # ポジティブなニュース: +3%から+15%
+            change_percent = random.uniform(3.0, 15.0)
+        elif event_type in negative_events:
+            # ネガティブなニュース: -15%から-3%
+            change_percent = random.uniform(-15.0, -3.0)
+        else:
+            # 中性的なニュース: -5%から+8%
+            change_percent = random.uniform(-5.0, 8.0)
+        
+        # 現在の株価を取得
+        current_price = await get_current_stock_price(symbol)
+        
+        # 新しい株価を計算
+        new_price = current_price * (1 + change_percent / 100)
+        
+        # 株価を更新
+        market_ref = db.collection("market_data").document(f"stock_{symbol}")
+        market_doc = market_ref.get()
+        
+        if market_doc.exists:
+            market_data = market_doc.to_dict()
+            
+            # 価格履歴を更新
+            price_history = market_data.get("price_history", [])
+            price_history.append({
+                "price": new_price,
+                "timestamp": firestore.SERVER_TIMESTAMP,
+                "change_percent": change_percent,
+                "reason": f"ニュース影響: {event_type}"
+            })
+            
+            # 最新の価格も更新
+            market_ref.update({
+                "current_price": new_price,
+                "price_history": price_history,
+                "last_updated": firestore.SERVER_TIMESTAMP
+            })
+            
+            print(f"[ニュース株価変動] {symbol}: {current_price:.2f} → {new_price:.2f} ({change_percent:+.1f}%) - {event_type}")
+        
+    except Exception as e:
+        print(f"株価変動適用エラー {symbol}: {e}")
 
 @tasks.loop(hours=2)  # 2時間間隔に短縮
 async def market_news_task():
