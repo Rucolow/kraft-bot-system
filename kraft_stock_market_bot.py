@@ -197,7 +197,7 @@ MARKET_CONFIG = {
 }
 
 # 通知チャンネルID
-INVESTMENT_NEWS_CHANNEL_ID = 1352858863472984084  # 投資ニュースチャンネル
+INVESTMENT_NEWS_CHANNEL_ID = 1378237887446777997  # 投資ニュースチャンネル
 
 @bot.event
 async def on_ready():
