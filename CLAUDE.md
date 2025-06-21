@@ -138,6 +138,42 @@ sudo ufw status
 - **ImportError**: ライブラリ不足 → `pip install -r requirements.txt`
 - **Firebase認証エラー**: 認証ファイルのパス確認
 - **Discord Token無効**: `.env`のトークン設定確認
+- **スラッシュコマンド0個同期**: コマンド定義の構造問題 → 動作しているbotの構造を参考に再構築
+
+### Bot修正のベストプラクティス
+
+#### 深刻な問題（スラッシュコマンド登録失敗等）の場合
+1. **症状の確認**
+   - ログで「0個のコマンドが同期されました」と表示
+   - Discord側でスラッシュコマンドが表示されない
+   - 手動実行では on_ready イベントは実行されている
+
+2. **確実な修正方法**
+   ```bash
+   # 1. 動作しているbotファイルをベースとして使用
+   cp kraft_stock_market_bot.py kraft_central_bank_new.py
+   
+   # 2. 必要な部分だけを置き換えて再構築
+   # - コマンド定義部分
+   # - bot設定（prefix、intents等）
+   # - 環境変数名
+   
+   # 3. 元ファイルをバックアップしてから置き換え
+   mv kraft_central_bank.py kraft_central_bank_backup.py
+   mv kraft_central_bank_new.py kraft_central_bank.py
+   ```
+
+3. **重要な構造ポイント**
+   - 全てのコマンドは `on_ready` イベント内で定義
+   - インデントは4スペースで統一
+   - コマンド同期 `await bot.tree.sync()` は `on_ready` の最後に配置
+   - エラーハンドリングを含める
+
+4. **修正後の確認**
+   - ローカルで構文チェック: `python -m py_compile *.py`
+   - 手動実行で「✅ X個のコマンドが同期されました」を確認
+   - Git commit & push
+   - VPS再起動後にDiscord側で動作確認
 
 ## 開発時の注意点
 
