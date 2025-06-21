@@ -66,9 +66,23 @@ async def on_ready():
         bot.tree.clear_commands(guild=guild)
         print(f"  - {guild.name} のコマンドをクリア")
     
-    # グローバルコマンドの同期を強制
-    print("\n🔄 グローバルコマンドを強制同期...")
+    # コマンドツリーをコピーして、statusコマンドを探して削除
+    print("\n🔍 statusコマンドを検索中...")
+    all_commands = await bot.tree.fetch_commands()
+    for cmd in all_commands:
+        if cmd.name == "status":
+            print(f"⚠️ statusコマンドを発見！削除します: {cmd.name}")
+            # このコマンドは想定外なので、ログに記録
+            with open("unexpected_commands.log", "a") as f:
+                f.write(f"{datetime.datetime.now()}: Found unexpected 'status' command\n")
+    
+    # グローバルコマンドの同期を強制（空の状態で）
+    print("\n🔄 空のコマンドツリーを同期...")
     await bot.tree.sync()
+    
+    # 少し待機してからコマンドを定義
+    import asyncio
+    await asyncio.sleep(2)
     
     # bot_status.txtファイルを作成
     with open("bot_status.txt", "w") as f:
