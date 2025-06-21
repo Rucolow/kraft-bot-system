@@ -34,6 +34,20 @@ intents.members = True
 # Bot作成
 bot = commands.Bot(command_prefix='!bank_', intents=intents)
 
+# 起動時にコマンドツリーの状態を確認
+@bot.event
+async def setup_hook():
+    print("🔍 既存のコマンドツリーを確認中...")
+    commands_list = []
+    for command in bot.tree.get_commands():
+        commands_list.append(f"  - {command.name}")
+    if commands_list:
+        print(f"既存のコマンド: {len(commands_list)}個")
+        for cmd in commands_list:
+            print(cmd)
+    else:
+        print("既存のコマンドはありません")
+
 # =====================================
 # イベントハンドラー
 # =====================================
@@ -46,6 +60,21 @@ async def on_ready():
     # 既存のコマンドを完全にクリア
     print("\n🗑️ 既存コマンドをクリア...")
     bot.tree.clear_commands(guild=None)
+    
+    # 全ギルドからもコマンドをクリア
+    for guild in bot.guilds:
+        bot.tree.clear_commands(guild=guild)
+        print(f"  - {guild.name} のコマンドをクリア")
+    
+    # グローバルコマンドの同期を強制
+    print("\n🔄 グローバルコマンドを強制同期...")
+    await bot.tree.sync()
+    
+    # bot_status.txtファイルを作成
+    with open("bot_status.txt", "w") as f:
+        f.write(f"起動時刻: {datetime.datetime.now()}\n")
+        f.write(f"Bot名: {bot.user}\n")
+        f.write(f"ギルド数: {len(bot.guilds)}\n")
     
     # =====================================
     # 残高確認コマンド
@@ -304,16 +333,28 @@ async def on_ready():
     # =====================================
     print("\n🔄 コマンドを同期中...")
     try:
+        # グローバルコマンドの再同期
         synced = await bot.tree.sync()
         print(f"✅ {len(synced)}個のコマンドが同期されました！")
         for cmd in synced:
             print(f"  - /{cmd.name}: {cmd.description}")
+        
+        # bot_status.txtに同期情報を追記
+        with open("bot_status.txt", "a") as f:
+            f.write(f"同期コマンド数: {len(synced)}\n")
+            for cmd in synced:
+                f.write(f"  - /{cmd.name}\n")
         
         print("\n🎯 利用可能なコマンド:")
         print("  /残高 - 残高確認")
         print("  /送金 - KR送金")
         print("  /スロット - スロットマシン")
         print("  /残高調整 - 管理者専用")
+        
+        # 警告: statusコマンドが存在する場合
+        if any(cmd.name == "status" for cmd in synced):
+            print("\n⚠️ 警告: 'status'コマンドが検出されました！")
+            print("これは予期しないコマンドです。")
     except Exception as e:
         print(f"❌ コマンド同期失敗: {e}")
         import traceback
