@@ -66,15 +66,29 @@ async def on_ready():
         bot.tree.clear_commands(guild=guild)
         print(f"  - {guild.name} のコマンドをクリア")
     
-    # コマンドツリーをコピーして、statusコマンドを探して削除
-    print("\n🔍 statusコマンドを検索中...")
-    all_commands = await bot.tree.fetch_commands()
-    for cmd in all_commands:
-        if cmd.name == "status":
-            print(f"⚠️ statusコマンドを発見！削除します: {cmd.name}")
-            # このコマンドは想定外なので、ログに記録
-            with open("unexpected_commands.log", "a") as f:
-                f.write(f"{datetime.datetime.now()}: Found unexpected 'status' command\n")
+    # Discord APIから既存のコマンドを取得して削除
+    print("\n🔍 既存のコマンドを確認中...")
+    try:
+        all_commands = await bot.tree.fetch_commands()
+        print(f"  現在{len(all_commands)}個のグローバルコマンドが登録されています")
+        
+        # statusコマンドがあれば削除
+        for cmd in all_commands:
+            if cmd.name == "status":
+                print(f"⚠️ statusコマンドを発見！削除します: {cmd.name} (ID: {cmd.id})")
+                await bot.tree.remove_command(cmd.name)
+                print(f"✅ statusコマンドを削除しました")
+                
+        # ギルドコマンドも確認
+        for guild in bot.guilds:
+            guild_commands = await bot.tree.fetch_commands(guild=guild)
+            for cmd in guild_commands:
+                if cmd.name == "status":
+                    print(f"⚠️ {guild.name}でstatusコマンドを発見！削除します")
+                    await bot.tree.remove_command(cmd.name, guild=guild)
+                    
+    except Exception as e:
+        print(f"既存コマンドの確認中にエラー: {e}")
     
     # グローバルコマンドの同期を強制（空の状態で）
     print("\n🔄 空のコマンドツリーを同期...")
@@ -84,11 +98,14 @@ async def on_ready():
     import asyncio
     await asyncio.sleep(2)
     
-    # bot_status.txtファイルを作成
-    with open("bot_status.txt", "w") as f:
-        f.write(f"起動時刻: {datetime.datetime.now()}\n")
-        f.write(f"Bot名: {bot.user}\n")
-        f.write(f"ギルド数: {len(bot.guilds)}\n")
+    # bot_status.txtファイルを作成（エラーを防ぐため try-except を追加）
+    try:
+        with open("bot_status.txt", "w") as f:
+            f.write(f"起動時刻: {datetime.datetime.now()}\n")
+            f.write(f"Bot名: {bot.user}\n")
+            f.write(f"ギルド数: {len(bot.guilds)}\n")
+    except Exception as e:
+        print(f"bot_status.txt作成エラー: {e}")
     
     # =====================================
     # 残高確認コマンド
@@ -354,10 +371,13 @@ async def on_ready():
             print(f"  - /{cmd.name}: {cmd.description}")
         
         # bot_status.txtに同期情報を追記
-        with open("bot_status.txt", "a") as f:
-            f.write(f"同期コマンド数: {len(synced)}\n")
-            for cmd in synced:
-                f.write(f"  - /{cmd.name}\n")
+        try:
+            with open("bot_status.txt", "a") as f:
+                f.write(f"同期コマンド数: {len(synced)}\n")
+                for cmd in synced:
+                    f.write(f"  - /{cmd.name}\n")
+        except Exception as e:
+            print(f"bot_status.txt更新エラー: {e}")
         
         print("\n🎯 利用可能なコマンド:")
         print("  /残高 - 残高確認")
