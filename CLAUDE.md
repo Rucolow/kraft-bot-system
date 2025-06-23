@@ -140,6 +140,45 @@ sudo ufw status
 - **Discord Token無効**: `.env`のトークン設定確認
 - **スラッシュコマンド0個同期**: コマンド定義の構造問題 → 動作しているbotの構造を参考に再構築
 
+### 🚨 重要: スラッシュコマンドが/statusに置き換わる問題（解決済み）
+
+**症状**: 正常に起動するが、時間が経つと自動的にスラッシュコマンドが/statusのみに置き換わる
+
+**根本原因**: 同一Discord Tokenを使用する複数プロセスの同時実行
+- systemdサービスと手動実行プロセスが重複
+- 複数のプロセスが互いにコマンドを上書きし合う
+
+**解決方法**:
+```bash
+# 1. 重複プロセスの確認
+ps aux | grep kraft
+
+# 2. 手動実行プロセスの停止（PIDを確認して）
+kill [PID]
+
+# 3. systemdサービスのみ動作させる
+systemctl status kraft-central-bank
+```
+
+**予防策**:
+- **手動テスト前**: 必ず `sudo systemctl stop kraft-central-bank`
+- **テスト後**: 必ず `sudo systemctl start kraft-central-bank`
+- **絶対に守る**: systemdサービス稼働中に手動実行しない
+
+**検証コマンド**:
+```bash
+# プロセス重複チェック
+ps aux | grep kraft_central_bank
+
+# Discord Token重複チェック
+grep -n "DISCORD_TOKEN" kraft_*.py
+```
+
+**修正実装**: kraft_central_bank.py（2025-06-23修正）
+- コマンド定義をon_ready外に移動
+- 自動監視タスクでstatusコマンド検出時の自動修正
+- 詳細ログ記録（central_bank_*.log）
+
 ### Bot修正のベストプラクティス
 
 #### 深刻な問題（スラッシュコマンド登録失敗等）の場合
