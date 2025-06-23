@@ -140,44 +140,90 @@ sudo ufw status
 - **Discord Token無効**: `.env`のトークン設定確認
 - **スラッシュコマンド0個同期**: コマンド定義の構造問題 → 動作しているbotの構造を参考に再構築
 
-### 🚨 重要: スラッシュコマンドが/statusに置き換わる問題（解決済み）
+### 🚨 重要: スラッシュコマンドが/statusに置き換わる問題（完全解決）
 
-**症状**: 正常に起動するが、時間が経つと自動的にスラッシュコマンドが/statusのみに置き換わる
+**症状**: 正常に起動するが、時間が経つと自動的にスラッシュコマンドが/statusのみに置き換わる、または完全に消失する
 
-**根本原因**: 同一Discord Tokenを使用する複数プロセスの同時実行
-- systemdサービスと手動実行プロセスが重複
-- 複数のプロセスが互いにコマンドを上書きし合う
+#### 💥 真の原因: bot_monitor.sh（2025-06-23完全特定）
 
-**解決方法**:
+**根本原因**: crontabで5分間隔実行される監視スクリプト
 ```bash
-# 1. 重複プロセスの確認
-ps aux | grep kraft
-
-# 2. 手動実行プロセスの停止（PIDを確認して）
-kill [PID]
-
-# 3. systemdサービスのみ動作させる
-systemctl status kraft-central-bank
+# 問題のcron設定
+*/5 * * * * /home/kraftbot/bot_monitor.sh
 ```
 
-**予防策**:
-- **手動テスト前**: 必ず `sudo systemctl stop kraft-central-bank`
-- **テスト後**: 必ず `sudo systemctl start kraft-central-bank`
-- **絶対に守る**: systemdサービス稼働中に手動実行しない
+**発生メカニズム**:
+1. `bot_monitor.sh`が5分ごとに全Botサービスをチェック
+2. 何らかの理由でサービス再起動を実行
+3. Bot再起動時にコマンドツリーが一時的にクリア
+4. 再同期プロセスでDiscord側との競合が発生
+5. コマンドが空になったまま固着
 
-**検証コマンド**:
+**時系列証拠**:
+- 12:21まで正常動作
+- **12:26に問題発生** ← 5分間隔と完全一致
+- 12:32以降コマンド完全消失
+
+#### ✅ 完全解決方法
+
+**1. 問題のcron削除**:
 ```bash
-# プロセス重複チェック
-ps aux | grep kraft_central_bank
+# cronを完全削除
+crontab -r
 
-# Discord Token重複チェック
-grep -n "DISCORD_TOKEN" kraft_*.py
+# 確認
+crontab -l  # "no crontab" と表示されるべき
+```
+
+**2. 効果確認**:
+```bash
+# 監視ログでコマンド復帰を確認
+tail -f central_bank_monitor.log
+# → cron削除後、コマンドが正常に復帰
+```
+
+#### 🛡️ 予防策と代替監視
+
+**安全な監視スクリプト例**:
+```bash
+#!/bin/bash
+# アラート専用（再起動しない）
+for service in kraft-central-bank kraft-community kraft-title kraft-stock-market; do
+    if ! systemctl is-active --quiet "$service"; then
+        echo "[ALERT] $service is down" | logger
+        # 再起動はせず、通知のみ
+    fi
+done
+```
+
+#### 🔍 調査・診断コマンド
+
+**問題発生時の調査手順**:
+```bash
+# 1. cron確認（最優先）
+crontab -l
+sudo crontab -l
+
+# 2. プロセス重複チェック
+ps aux | grep kraft
+
+# 3. Discord Token重複チェック
+grep -r "DISCORD_TOKEN_CENTRAL_BANK_BOT" .
+
+# 4. 外部プロセス確認
+pm2 list
+supervisorctl status 2>/dev/null
 ```
 
 **修正実装**: kraft_central_bank.py（2025-06-23修正）
 - コマンド定義をon_ready外に移動
 - 自動監視タスクでstatusコマンド検出時の自動修正
 - 詳細ログ記録（central_bank_*.log）
+
+**重要**: この問題は複数の要因が重なって発生したため、段階的な調査が必要でした：
+1. 初期仮説: プロセス重複 → 部分的に正しい
+2. 中間仮説: 共有設定ファイル → 無関係
+3. **最終解決**: crontab監視スクリプト → 真犯人
 
 ### Bot修正のベストプラクティス
 
