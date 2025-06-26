@@ -66,6 +66,7 @@ jobs:
       uses: sarisia/actions-status-discord@v1
       with:
         webhook: ${{ secrets.DISCORD_WEBHOOK }}
+        ack_no_webhook: true
         status: ${{ job.status }}
         title: "Deployment Status"
         description: |
