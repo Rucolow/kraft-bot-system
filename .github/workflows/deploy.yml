@@ -31,7 +31,7 @@ jobs:
           sudo -u kraftbot git pull origin main
           
           # Generate secure .env file with proper ownership
-          sudo -u kraftbot tee .env > /dev/null << 'ENVEOF'
+          sudo -u kraftbot bash -c 'cat > .env << "ENVEOF"
 # Discord Bot Tokens
 DISCORD_TOKEN_CENTRAL_BANK_BOT=${{ secrets.DISCORD_TOKEN_CENTRAL_BANK_BOT }}
 DISCORD_TOKEN_COMMUNITY_BOT=${{ secrets.DISCORD_TOKEN_COMMUNITY_BOT }}
@@ -46,7 +46,7 @@ FIREBASE_PROJECT_ID=new-kraft-bot
 
 # Admin Configuration
 ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}
-ENVEOF
+ENVEOF'
           
           # Set secure permissions
           sudo chmod 600 .env
