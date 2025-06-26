@@ -31,22 +31,21 @@ jobs:
           sudo -u kraftbot git pull origin main
           
           # Generate secure .env file with proper ownership
-          sudo -u kraftbot bash -c 'cat > .env << "ENVEOF"
-# Discord Bot Tokens
-DISCORD_TOKEN_CENTRAL_BANK_BOT=${{ secrets.DISCORD_TOKEN_CENTRAL_BANK_BOT }}
-DISCORD_TOKEN_COMMUNITY_BOT=${{ secrets.DISCORD_TOKEN_COMMUNITY_BOT }}
-DISCORD_TOKEN_TITLE_BOT=${{ secrets.DISCORD_TOKEN_TITLE_BOT }}
-DISCORD_TOKEN_STOCK_MARKET_BOT=${{ secrets.DISCORD_TOKEN_STOCK_MARKET_BOT }}
-
-# Anthropic API
-ANTHROPIC_API_KEY=${{ secrets.CLAUDE_API_KEY }}
-
-# Firebase
-FIREBASE_PROJECT_ID=new-kraft-bot
-
-# Admin Configuration
-ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}
-ENVEOF'
+          sudo -u kraftbot rm -f .env
+          sudo -u kraftbot echo "# Discord Bot Tokens" > .env
+          sudo -u kraftbot echo "DISCORD_TOKEN_CENTRAL_BANK_BOT=${{ secrets.DISCORD_TOKEN_CENTRAL_BANK_BOT }}" >> .env
+          sudo -u kraftbot echo "DISCORD_TOKEN_COMMUNITY_BOT=${{ secrets.DISCORD_TOKEN_COMMUNITY_BOT }}" >> .env
+          sudo -u kraftbot echo "DISCORD_TOKEN_TITLE_BOT=${{ secrets.DISCORD_TOKEN_TITLE_BOT }}" >> .env
+          sudo -u kraftbot echo "DISCORD_TOKEN_STOCK_MARKET_BOT=${{ secrets.DISCORD_TOKEN_STOCK_MARKET_BOT }}" >> .env
+          sudo -u kraftbot echo "" >> .env
+          sudo -u kraftbot echo "# Anthropic API" >> .env
+          sudo -u kraftbot echo "ANTHROPIC_API_KEY=${{ secrets.CLAUDE_API_KEY }}" >> .env
+          sudo -u kraftbot echo "" >> .env
+          sudo -u kraftbot echo "# Firebase" >> .env
+          sudo -u kraftbot echo "FIREBASE_PROJECT_ID=new-kraft-bot" >> .env
+          sudo -u kraftbot echo "" >> .env
+          sudo -u kraftbot echo "# Admin Configuration" >> .env
+          sudo -u kraftbot echo "ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}" >> .env
           
           # Set secure permissions
           sudo chmod 600 .env
