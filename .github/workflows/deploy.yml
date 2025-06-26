@@ -22,44 +22,76 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.VPS_PORT || 22 }}
         script: |
-          # Switch to kraftbot user
-          sudo su - kraftbot << 'EOF'
+          # Deployment with proper user privilege management
           
-          # Navigate to project directory
-          cd ~/kraft-bot-system
+          # Navigate to kraftbot project directory
+          cd /home/kraftbot/kraft-bot-system
           
-          # Pull latest changes
-          git pull origin main
+          # Pull latest changes as kraftbot user
+          sudo -u kraftbot git pull origin main
           
-          # Update environment variables with secrets
-          echo "DISCORD_TOKEN_CENTRAL_BANK_BOT=${{ secrets.DISCORD_TOKEN_CENTRAL_BANK_BOT }}" > .env
-          echo "DISCORD_TOKEN_COMMUNITY_BOT=${{ secrets.DISCORD_TOKEN_COMMUNITY_BOT }}" >> .env
-          echo "DISCORD_TOKEN_TITLE_BOT=${{ secrets.DISCORD_TOKEN_TITLE_BOT }}" >> .env
-          echo "DISCORD_TOKEN_STOCK_MARKET_BOT=${{ secrets.DISCORD_TOKEN_STOCK_MARKET_BOT }}" >> .env
-          echo "ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}" >> .env
-          echo "ANTHROPIC_API_KEY=${{ secrets.CLAUDE_API_KEY }}" >> .env
+          # Generate secure .env file with proper ownership
+          sudo -u kraftbot tee .env > /dev/null << EOF
+          DISCORD_TOKEN_CENTRAL_BANK_BOT=${{ secrets.DISCORD_TOKEN_CENTRAL_BANK_BOT }}
+          DISCORD_TOKEN_COMMUNITY_BOT=${{ secrets.DISCORD_TOKEN_COMMUNITY_BOT }}
+          DISCORD_TOKEN_TITLE_BOT=${{ secrets.DISCORD_TOKEN_TITLE_BOT }}
+          DISCORD_TOKEN_STOCK_MARKET_BOT=${{ secrets.DISCORD_TOKEN_STOCK_MARKET_BOT }}
+          ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}
+          ANTHROPIC_API_KEY=${{ secrets.CLAUDE_API_KEY }}
+          EOF
           
-          # Install/update dependencies
-          source kraft_env/bin/activate
-          pip install -r requirements.txt
+          # Set secure permissions
+          sudo chmod 600 .env
+          sudo chown kraftbot:kraftbot .env
           
-          # Restart services (method depends on how bots are running)
-          # Try systemd first
-          for service in kraft-central-bank kraft-community kraft-title kraft-stock-market; do
-            if systemctl is-active --quiet $service; then
+          # Update dependencies in virtual environment
+          sudo -u kraftbot bash -c "
+            source kraft_env/bin/activate
+            pip install -r requirements.txt --quiet
+          "
+          
+          # Validate environment before restart
+          echo "=== Pre-deployment Validation ==="
+          sudo -u kraftbot python3 -c "
+          import os
+          from dotenv import load_dotenv
+          load_dotenv()
+          tokens = ['DISCORD_TOKEN_CENTRAL_BANK_BOT', 'DISCORD_TOKEN_COMMUNITY_BOT', 'DISCORD_TOKEN_TITLE_BOT', 'DISCORD_TOKEN_STOCK_MARKET_BOT']
+          for token in tokens:
+              value = os.getenv(token)
+              print(f'{token}: {\"✅ Set\" if value else \"❌ Missing\"}')
+          "
+          
+          # Restart services with dependency order
+          echo "=== Service Restart Sequence ==="
+          services=(kraft-central-bank kraft-community kraft-title kraft-stock-market)
+          
+          for service in "${services[@]}"; do
+            if systemctl is-enabled "$service" >/dev/null 2>&1; then
               echo "Restarting $service..."
-              sudo systemctl restart $service
+              sudo systemctl restart "$service"
+              sleep 2
+              
+              # Verify service startup
+              if systemctl is-active --quiet "$service"; then
+                echo "✅ $service: Active"
+              else
+                echo "❌ $service: Failed"
+                sudo journalctl -u "$service" --no-pager -n 10
+              fi
+            else
+              echo "⚠️  $service: Not enabled"
             fi
           done
           
-          # Try PM2 if systemd services not found
-          if command -v pm2 &> /dev/null; then
-            pm2 restart all
-          fi
+          # Post-deployment verification
+          echo "=== Post-deployment Status ==="
+          sudo systemctl status kraft-* --no-pager -l
           
-          # Check if deployment was successful
-          echo "Deployment completed at $(date)"
-          EOF
+          echo "=== Deployment Summary ==="
+          echo "Timestamp: $(date)"
+          echo "Git commit: $(cd /home/kraftbot/kraft-bot-system && git rev-parse --short HEAD)"
+          echo "Services restarted: ${#services[@]}"
     
     - name: Send Discord notification
       if: always()
