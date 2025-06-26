@@ -31,6 +31,14 @@ jobs:
           # Pull latest changes
           git pull origin main
           
+          # Update environment variables with secrets
+          echo "DISCORD_TOKEN_CENTRAL_BANK_BOT=${{ secrets.DISCORD_TOKEN_CENTRAL_BANK_BOT }}" > .env
+          echo "DISCORD_TOKEN_COMMUNITY_BOT=${{ secrets.DISCORD_TOKEN_COMMUNITY_BOT }}" >> .env
+          echo "DISCORD_TOKEN_TITLE_BOT=${{ secrets.DISCORD_TOKEN_TITLE_BOT }}" >> .env
+          echo "DISCORD_TOKEN_STOCK_MARKET_BOT=${{ secrets.DISCORD_TOKEN_STOCK_MARKET_BOT }}" >> .env
+          echo "ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}" >> .env
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env
+          
           # Install/update dependencies
           source kraft_env/bin/activate
           pip install -r requirements.txt
