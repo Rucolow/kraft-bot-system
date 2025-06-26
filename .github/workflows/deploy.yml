@@ -37,7 +37,7 @@ jobs:
           echo "DISCORD_TOKEN_TITLE_BOT=${{ secrets.DISCORD_TOKEN_TITLE_BOT }}" >> .env
           echo "DISCORD_TOKEN_STOCK_MARKET_BOT=${{ secrets.DISCORD_TOKEN_STOCK_MARKET_BOT }}" >> .env
           echo "ADMIN_USER_IDS=${{ secrets.ADMIN_USER_IDS }}" >> .env
-          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env
+          echo "ANTHROPIC_API_KEY=${{ secrets.CLAUDE_API_KEY }}" >> .env
           
           # Install/update dependencies
           source kraft_env/bin/activate
