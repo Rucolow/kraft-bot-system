@@ -31,6 +31,8 @@ cd kraft-bot-system
   - 送金 (/送金)
   - スロットゲーム (/スロット)
   - 残高調整 (/残高調整) - 管理者専用
+- **重要**: 2025-06-26に新しいBotとして再作成済み（古いBot削除）
+- **安定性**: monitor_commands()タスク削除により完全安定化
 
 ### 2. Community Bot (kraft_community_bot.py)
 - **役割**: クエスト・レベルシステム管理
@@ -225,32 +227,38 @@ supervisorctl status 2>/dev/null
 2. 中間仮説: 共有設定ファイル → 無関係
 3. **最終解決**: crontab監視スクリプト → 真犯人
 
-#### ⚠️ 監視機能の一時停止について（2025-06-23決定）
+#### ✅ スラッシュコマンド消失問題の完全解決（2025-06-26最終解決）
 
-**現状**: 問題解決のため、`crontab -r`で監視機能を完全停止
+**問題**: Central Bank Botのみ起動後数時間でスラッシュコマンドが消失する
 
-**影響とリスク**:
-- ✅ **解決**: スラッシュコマンド置き換わり問題が完全解決
-- ❌ **リスク**: Botの自動復旧機能が無効化
-- ❌ **リスク**: 夜間・不在時の障害対応が手動のみ
+**真の原因**: 
+1. **monitor_commands()タスク**: 5分間隔でDiscord APIを過度に呼び出し
+2. **自動コマンドクリア**: `bot.tree.clear_commands()`の頻繁な実行
+3. **Discord API競合**: 頻繁な同期でAPI制限・状態競合が発生
 
-**運用方針**: 
-- **当面は様子見** - 手動監視で対応
-- 問題を感じた場合は改良版監視スクリプトを実装
-- 安定稼働が確認できれば、安全な監視システムを再導入
+**完全解決策**:
+```python
+# kraft_central_bank.py (修正版)
+# 監視タスクを完全削除
+# async def monitor_commands(): ← 削除済み
+# bot.loop.create_task(monitor_commands()) ← 削除済み
 
-**代替案（必要時に実装）**:
-```bash
-# 15分間隔の安全な監視（競合回避）
-*/15 * * * * /home/kraftbot/safe_bot_monitor.sh
-
-# または通知専用監視（再起動なし）
-*/10 * * * * /home/kraftbot/alert_only_monitor.sh
+# シンプルな起動時のみコマンド同期
+@bot.event
+async def on_ready():
+    synced = await bot.tree.sync()
+    print(f"✅ {len(synced)}個のコマンドが同期されました")
 ```
 
-**判断基準**: 
-- Bot停止頻度が高い場合 → 監視再導入
-- 安定稼働継続の場合 → 現状維持
+**結果**: 
+- ✅ **完全解決**: スラッシュコマンド消失問題根絶
+- ✅ **安定性向上**: 他のBotと同様のシンプルなパターン
+- ✅ **API効率化**: 起動時1回のみの同期
+
+**重要な教訓**: 
+- 過度な監視・自動修正は逆効果
+- シンプルなアーキテクチャが最も安定
+- Discord APIの適切な使用頻度の重要性
 
 ### Bot修正のベストプラクティス
 
@@ -312,10 +320,31 @@ KRAFT Bot システムの改善作業を行います。
 ```
 
 ## GitHub Secrets設定
-- VPS_HOST: 160.16.76.218
-- VPS_USER: ubuntu
-- SSH_PRIVATE_KEY: ~/.ssh/id_ed25519の内容
-- DISCORD_WEBHOOK: (オプション)
+
+### 完全自動化CI/CDパイプライン（2025-06-26構築）
+
+**必須Secrets**:
+- **VPS_HOST**: 160.16.76.218
+- **VPS_USER**: ubuntu  
+- **SSH_PRIVATE_KEY**: ~/.ssh/id_ed25519の内容（完全な秘密鍵）
+- **DISCORD_TOKEN_CENTRAL_BANK_BOT**: 新しいCentral Bank Bot Token
+- **DISCORD_TOKEN_COMMUNITY_BOT**: Community Bot Token
+- **DISCORD_TOKEN_TITLE_BOT**: Title Bot Token
+- **DISCORD_TOKEN_STOCK_MARKET_BOT**: Stock Market Bot Token
+- **CLAUDE_API_KEY**: Anthropic Claude API Key
+- **ADMIN_USER_IDS**: 管理者Discord User ID
+
+**自動デプロイ機能**:
+- コード変更 → GitHub push → VPS自動反映
+- 環境変数の安全な配布
+- 全4つのBotサービス自動再起動
+- デプロイ後の健全性チェック
+
+**SSH認証設定**:
+- VPS ubuntu/.ssh/authorized_keys に公開鍵設定済み
+- sudoers設定: `ubuntu ALL=(ALL) NOPASSWD: ALL`
+
+**重要**: .envファイルは手動編集不要。GitHub Secretsから自動生成される。
 
 ## 関連ドキュメント
 - docs/operation_manual.md - 運用マニュアル
