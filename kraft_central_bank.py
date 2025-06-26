@@ -283,55 +283,8 @@ async def admin_adjust_cmd(interaction: discord.Interaction, user: discord.Membe
         await interaction.followup.send("残高調整中にエラーが発生しました。", ephemeral=True)
 
 # =====================================
-# コマンド監視タスク（改善版）
+# 監視タスク削除済み - 問題解決のため無効化
 # =====================================
-async def monitor_commands():
-    """コマンドの状態を監視し、問題があれば自動修正"""
-    await bot.wait_until_ready()
-    
-    while True:
-        await asyncio.sleep(300)  # 5分ごと
-        try:
-            current_commands = await bot.tree.fetch_commands()
-            command_names = [cmd.name for cmd in current_commands]
-            expected_commands = ['残高', '送金', 'スロット', '残高調整']
-            
-            # ログ記録
-            with open("central_bank_monitor.log", "a") as f:
-                f.write(f"\n[{datetime.datetime.now()}] Command check:\n")
-                f.write(f"  Current: {command_names}\n")
-                f.write(f"  Expected: {expected_commands}\n")
-            
-            # statusコマンドが存在する場合、自動的に削除して再同期
-            if "status" in command_names:
-                print(f"\n⚠️ [監視] 'status'コマンドを検出！自動修正を開始...")
-                
-                # 全てのコマンドをクリア
-                bot.tree.clear_commands(guild=None)
-                for guild in bot.guilds:
-                    bot.tree.clear_commands(guild=guild)
-                
-                # 再同期
-                await bot.tree.sync()
-                print("✅ コマンドを再同期しました")
-                
-                with open("central_bank_monitor.log", "a") as f:
-                    f.write(f"  ACTION: Removed status command and resynced\n")
-            
-            # 必要なコマンドが欠けている場合も再同期
-            missing = [cmd for cmd in expected_commands if cmd not in command_names]
-            if missing:
-                print(f"\n⚠️ [監視] 欠けているコマンド: {missing}")
-                await bot.tree.sync()
-                print("✅ コマンドを再同期しました")
-                
-                with open("central_bank_monitor.log", "a") as f:
-                    f.write(f"  ACTION: Resynced due to missing commands: {missing}\n")
-                    
-        except Exception as e:
-            print(f"監視エラー: {e}")
-            with open("central_bank_monitor.log", "a") as f:
-                f.write(f"[{datetime.datetime.now()}] Monitor error: {e}\n")
 
 # =====================================
 # イベントハンドラー
@@ -342,14 +295,9 @@ async def on_ready():
     print(f"\n🏦 KRAFT中央銀行Bot起動: {bot.user}")
     print(f"接続サーバー: {[g.name for g in bot.guilds]}")
     
-    # ログファイル作成
-    try:
-        with open("central_bank_startup.log", "a") as f:
-            f.write(f"\n[{datetime.datetime.now()}] Bot started\n")
-            f.write(f"Bot: {bot.user}\n")
-            f.write(f"Guilds: {[g.name for g in bot.guilds]}\n")
-    except Exception as e:
-        print(f"ログ作成エラー: {e}")
+    # シンプルな起動ログ
+    print(f"Bot: {bot.user}")
+    print(f"Guilds: {[g.name for g in bot.guilds]}")
     
     # コマンド同期
     print("\n🔄 コマンドを同期中...")
@@ -359,11 +307,7 @@ async def on_ready():
         for cmd in synced:
             print(f"  - /{cmd.name}: {cmd.description}")
         
-        # ログ記録
-        with open("central_bank_startup.log", "a") as f:
-            f.write(f"Synced commands: {len(synced)}\n")
-            for cmd in synced:
-                f.write(f"  - /{cmd.name}\n")
+        # コマンド同期成功
         
         print("\n🎯 利用可能なコマンド:")
         print("  /残高 - 残高確認")
@@ -376,13 +320,10 @@ async def on_ready():
         import traceback
         traceback.print_exc()
         
-        with open("central_bank_startup.log", "a") as f:
-            f.write(f"Sync failed: {e}\n")
-            f.write(traceback.format_exc())
+        print(f"Sync error details: {traceback.format_exc()}")
     
-    # 監視タスク開始
-    print("\n⏰ コマンド監視タスクを開始します...")
-    bot.loop.create_task(monitor_commands())
+    # 監視タスク無効化 - スラッシュコマンド消失問題の解決
+    print("\n✅ コマンド同期完了 - 監視タスクは無効化済み")
 
 # エラーハンドリング
 @bot.event
@@ -390,10 +331,6 @@ async def on_error(event, *args, **kwargs):
     print(f"❌ エラー: {event}")
     import traceback
     traceback.print_exc()
-    
-    with open("central_bank_error.log", "a") as f:
-        f.write(f"\n[{datetime.datetime.now()}] Error in {event}\n")
-        f.write(traceback.format_exc())
 
 # Bot起動
 print("\n🚀 KRAFT中央銀行Bot起動中...")
